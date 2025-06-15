@@ -10,10 +10,23 @@
 <body>
   <h1>四子棋网页版</h1>
   <a href="https://github.com/saguielowe/connect-four">这是项目源代码</a>
-  <p>这是一个简单的四子棋游戏，你可以在浏览器中与朋友对战。</p>
-  <div class="game-container">
+  <p>这是一个简单的四子棋游戏，你可以在浏览器中与朋友对战。点击棋盘落子来与AI下棋。</p>
+  <div class="container">
     <div class="board" id="board">
       <!-- 这里是游戏棋盘的容器，id为board -->
+      </div>
+    <div class="controls">
+      <h2>游戏控制</h2>
+      <button id="startGame" onclick="resetGame()">开始新游戏</button>
+      <button id="resetGame">重置游戏</button>
+      <button id="undoMove">悔棋</button>
+      <button id="toggleTheme">切换主题</button>
+      </div>
+    <div class="status">
+      <h2>游戏状态</h2>
+      <p id="currentPlayer">当前玩家：红色</p>
+      <p id="gameStatus">游戏状态：进行中</p>
+      <p id="moveHistory">移动历史：无</p>
       </div>
     </div>
     <script src="script.js"></script>
