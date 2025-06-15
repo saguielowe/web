@@ -14,6 +14,7 @@ for (let row = 0; row < 6; row++) {
 }
 
 let currentPlayer = "red";  // 当前玩家颜色，可为 "red" 或 "blue"
+let moveHistory = [];  // 用于存储悔棋记录
 
 const cells = document.querySelectorAll(".cell");
 cells.forEach(cell => {
@@ -35,6 +36,7 @@ function handleMove(col) {
     if (!target.classList.contains("red") && !target.classList.contains("blue")) {
       target.classList.add(currentPlayer);
       boardState[row][col] = currentPlayer;  // 更新数据结构
+      moveHistory.push({ row, col, player: currentPlayer });
       // 检查是否有玩家获胜，注意要延后判断
       setTimeout(() => {
   if (checkWin(boardState, currentPlayer) === 1) {
@@ -66,6 +68,7 @@ function checkWin(board, player) {
       if (board[row][col] === player) {
         for (const { r, c } of directions) {
           if (checkDirection(board, row, col, r, c, player) === 4) {
+            document.getElementById("gameStatus").textContent = "游戏状态：已结束";
             return 1;  // 返回1表示有玩家获胜
           }
         }
@@ -91,14 +94,17 @@ function switchPlayer() {
   currentPlayer = currentPlayer === "red" ? "blue" : "red";  // 切换玩家
   document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer}`;  // 更新当前玩家显示
   const aiCol = getRandomMove(boardState);
-  handleMove(aiCol); // AI 随机选择一个列进行落子
+  if (currentPlayer === "blue" && !gameOver)  // 如果当前是 AI 的回合且游戏未结束，注意此处默认 AI 蓝方
+    handleMove(aiCol); // AI 随机选择一个列进行落子
 }
 
 function resetGame() {
   boardState = Array.from({ length: 6 }, () => Array(7).fill(null));  // 重置棋盘状态
   gameOver = false;  // 重置游戏结束标志
   currentPlayer = "red";  // 重置当前玩家为红方
+  moveHistory = [];  // 清空悔棋记录
   document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer}`;  // 更新当前玩家显示
+  document.getElementById("gameStatus").textContent = "游戏状态：进行中";
   document.querySelectorAll(".cell").forEach(cell => {
     cell.classList.remove("red", "blue");
   });
@@ -114,4 +120,28 @@ function getRandomMove(boardState) {
   }
   const randomIndex = Math.floor(Math.random() * validCols.length);
   return validCols[randomIndex];
+}
+
+function undoMove() {
+  if (moveHistory.length <= 1 || gameOver) {
+    alert("无法悔棋！");// 一悔悔两步，AI也要撤销一步
+    return;
+  }
+
+  // 撤销 AI 落子
+  const aiMove = moveHistory.pop();
+  boardState[aiMove.row][aiMove.col] = null;
+  document
+    .querySelector(`.cell[data-row="${aiMove.row}"][data-col="${aiMove.col}"]`)
+    .classList.remove("red", "blue");
+
+  // 撤销人类落子
+  const playerMove = moveHistory.pop();
+  boardState[playerMove.row][playerMove.col] = null;
+  document
+    .querySelector(`.cell[data-row="${playerMove.row}"][data-col="${playerMove.col}"]`)
+    .classList.remove("red", "blue");
+
+  currentPlayer = playerMove.player;
+  document.getElementById("current-player").textContent = `当前玩家: ${currentPlayer}`;
 }

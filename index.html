@@ -18,13 +18,13 @@
     <div class="controls">
       <h2>游戏控制</h2>
       <button id="startGame" onclick="resetGame()">开始新游戏</button>
-      <button id="resetGame">重置游戏</button>
-      <button id="undoMove">悔棋</button>
+      <button id="resetGame" onclick="resetGame()">重置游戏</button>
+      <button id="undoMove" onclick="undoMove()">悔棋</button>
       <button id="toggleTheme">切换主题</button>
       </div>
     <div class="status">
       <h2>游戏状态</h2>
-      <p id="currentPlayer">当前玩家：红色</p>
+      <p id="currentPlayer">当前玩家：红方</p>
       <p id="gameStatus">游戏状态：进行中</p>
       <p id="moveHistory">移动历史：无</p>
       </div>
