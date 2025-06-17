@@ -15,6 +15,9 @@
     <div class="board" id="board">
       <!-- 这里是游戏棋盘的容器，id为board -->
       </div>
+    <svg id="win-line" width="100%" height="100%">
+      <!-- 这是一个SVG元素，用于显示游戏胜利时的连线 -->
+      </svg>
     <div class="controls">
       <h2>游戏控制</h2>
       <button id="startGame" onclick="resetGame()">开始新游戏</button>
@@ -29,6 +32,7 @@
       <p id="moveHistory">移动历史：无</p>
       </div>
     </div>
+    <script src="ai.js"></script>
     <script src="script.js"></script>
 
     

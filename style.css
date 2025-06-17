@@ -15,9 +15,34 @@ body {
   grid-template-columns: repeat(7, 60px); /* 7列 */
   grid-template-rows: repeat(6, 60px);    /* 6行 */
   gap: 5px;
+  margin-top: 20px;
   background-color: #eaeaea;
   padding: 10px;
   border-radius: 10px;
+  z-index: 1;
+}
+
+#win-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  pointer-events: none; /* 不干扰点击 */
+}
+
+#win-line line {
+  stroke-width: 10;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 10px gold);
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: drawline 0.6s ease-out forwards;
+}
+
+@keyframes drawline {
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .controls {
@@ -47,7 +72,6 @@ body {
   border-radius: 50%; /* 圆形棋子 */
   box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.2);
   cursor: pointer;
-  transition: background-color 0.3s;
 }
 
 .cell.red {
@@ -57,3 +81,28 @@ body {
 .cell.blue {
   background-color: blue;
 }
+
+.cell.red,
+.cell.blue {
+  transform: translateY(0); /* 落地位置 */
+}
+
+.cell.highlight {
+  box-shadow: 0 0 12px 4px gold;
+  border: 2px solid gold;
+  animation: glow 1s infinite alternate;
+}
+
+.cell.falling {
+  transform: translateY(-400px);
+  opacity: 0.3;
+  animation: dropIn 0.5s ease-out forwards;
+}
+
+@keyframes dropIn {
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+

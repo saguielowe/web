@@ -1,4 +1,5 @@
 const board = document.getElementById("board");
+const ai = new ai_player();  // 创建 AI 玩家实例
 // 初始化棋盘：6行7列，全是 null
 let boardState = Array.from({ length: 6 }, () => Array(7).fill(null));
 let gameOver = false;  // 游戏是否结束
@@ -16,7 +17,7 @@ for (let row = 0; row < 6; row++) {
 let currentPlayer = "red";  // 当前玩家颜色，可为 "red" 或 "blue"
 let moveHistory = [];  // 用于存储悔棋记录
 
-const cells = document.querySelectorAll(".cell");
+const cells = document.querySelectorAll(".cell");// html的类为一级，名称为二级，属性为三级，形如div.cell.red
 cells.forEach(cell => {
   cell.addEventListener("click", () => {
     const col = parseInt(cell.dataset.col);
@@ -35,17 +36,20 @@ function handleMove(col) {
     const target = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
     if (!target.classList.contains("red") && !target.classList.contains("blue")) {
       target.classList.add(currentPlayer);
+      target.classList.add("falling"); // 添加下落动画类
+      setTimeout(() => {
+        target.classList.remove("falling"); // 动画结束后移除下落动画
+      }, 500); // 假设下落动画持续500毫秒
       boardState[row][col] = currentPlayer;  // 更新数据结构
       moveHistory.push({ row, col, player: currentPlayer });
       // 检查是否有玩家获胜，注意要延后判断
       setTimeout(() => {
   if (checkWin(boardState, currentPlayer) === 1) {
-    alert(`${currentPlayer === "red" ? "红方" : "蓝方"} 获胜！`);
     gameOver = true;  // 设置游戏结束标志
   } else {
     switchPlayer();
   }
-      }, 80);
+      }, 520);
       return;
     }
   }
@@ -67,9 +71,21 @@ function checkWin(board, player) {
     for (let col = 0; col < 7; col++) {
       if (board[row][col] === player) {
         for (const { r, c } of directions) {
+          if (checkDirection(board, row, col, r, c, player) === 3) {
+            highlightpotentialWin(row, col, r, c, player, 3);  // 高亮潜在胜利位置
+          }
           if (checkDirection(board, row, col, r, c, player) === 4) {
             document.getElementById("gameStatus").textContent = "游戏状态：已结束";
-            return 1;  // 返回1表示有玩家获胜
+            highlightpotentialWin(row, col, r, c, player, 4);  // 高亮潜在胜利位置
+            setTimeout(() => { // 第二步，等待落子动画结束后高亮胜利位置
+            const r2 = row + r * 3;
+            const c2 = col + c * 3;
+            highlightWin(row, col, r2, c2, player === "red" ? "crimson" : "dodgerblue");
+            setTimeout(() => {
+              alert(`${player === "red" ? "红方" : "蓝方"}获胜！`);
+            }, 500);  // 第三步，等待胜利动画结束后弹出获胜提示
+            }, 520);
+            return 1;  // 无视延时，返回1表示有玩家获胜
           }
         }
       }
@@ -77,13 +93,58 @@ function checkWin(board, player) {
   }
   return -1;  // 没有玩家获胜
 }
-function checkDirection(board, row, col, r, c, player) {
+
+function highlightpotentialWin(row, col, dr, dc, player, cnt) {
+  for (let i = 0; i < cnt; i++) {
+    const r = row + dr * i;
+    const c = col + dc * i;
+    const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+    console.log(`Highlighting cell at (${r}, ${c}) for player ${player}`);
+    if (cell) cell.classList.add("highlight");
+  }
+}
+
+function highlightWin(r1, c1, r2, c2, color) {
+  console.log(r1, c1, r2, c2);
+  const cell1 = document.querySelector(`.cell[data-row="${r1}"][data-col="${c1}"]`);
+  const cell2 = document.querySelector(`.cell[data-row="${r2}"][data-col="${c2}"]`);
+  console.log(cell1, cell2);
+
+  if (!cell1 || !cell2) return;
+
+  const rect1 = cell1.getBoundingClientRect();
+  const rect2 = cell2.getBoundingClientRect();
+
+  const x1 = rect1.left + rect1.width / 2;
+  const y1 = rect1.top + rect1.height / 2;
+  const x2 = rect2.left + rect2.width / 2;
+  const y2 = rect2.top + rect2.height / 2;
+
+  const svg = document.getElementById("win-line");
+  svg.innerHTML = "";
+
+  const ns = "http://www.w3.org/2000/svg";
+  const line = document.createElementNS(ns, "line");
+  line.setAttribute("x1", x1);
+  line.setAttribute("y1", y1);
+  line.setAttribute("x2", x2);
+  line.setAttribute("y2", y2);
+  line.setAttribute("stroke", color);
+  line.setAttribute("stroke-width", "10");
+  line.setAttribute("stroke-linecap", "round");
+
+  svg.appendChild(line);
+}
+
+
+
+function checkDirection(board, row, col, r, c, player) { // 检查在指定方向上的连续棋子数量
   let count = 0;
   for (let i = 0; i < 4; i++) {
     const newRow = row + r * i;
     const newCol = col + c * i;
     if (newRow < 0 || newRow >= 6 || newCol < 0 || newCol >= 7 || board[newRow][newCol] !== player) {
-      return false;  // 越界或不匹配
+      break;  // 因为我们最多查4个，如果查到3个就越界了返回3，而不是false
     }
     count++;
   }
@@ -93,7 +154,7 @@ function checkDirection(board, row, col, r, c, player) {
 function switchPlayer() {
   currentPlayer = currentPlayer === "red" ? "blue" : "red";  // 切换玩家
   document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer}`;  // 更新当前玩家显示
-  const aiCol = getRandomMove(boardState);
+  const aiCol = ai.easy_move(boardState);
   if (currentPlayer === "blue" && !gameOver)  // 如果当前是 AI 的回合且游戏未结束，注意此处默认 AI 蓝方
     handleMove(aiCol); // AI 随机选择一个列进行落子
 }
@@ -103,23 +164,12 @@ function resetGame() {
   gameOver = false;  // 重置游戏结束标志
   currentPlayer = "red";  // 重置当前玩家为红方
   moveHistory = [];  // 清空悔棋记录
+  document.getElementById("win-line").innerHTML = ""; // 清空胜利线
   document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer}`;  // 更新当前玩家显示
   document.getElementById("gameStatus").textContent = "游戏状态：进行中";
   document.querySelectorAll(".cell").forEach(cell => {
-    cell.classList.remove("red", "blue");
+    cell.classList.remove("red", "blue", "highlight");  // 清除所有格子的样式
   });
-}
-
-function getRandomMove(boardState) {
-  // 返回一个还没满的列
-  const validCols = [];
-  for (let col = 0; col < 7; col++) {
-    if (boardState[0][col] === null) {
-      validCols.push(col);
-    }
-  }
-  const randomIndex = Math.floor(Math.random() * validCols.length);
-  return validCols[randomIndex];
 }
 
 function undoMove() {
