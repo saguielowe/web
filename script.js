@@ -16,7 +16,7 @@ for (let row = 0; row < 6; row++) {
 
 let currentPlayer = "red";  // 当前玩家颜色，可为 "red" 或 "blue"
 let moveHistory = [];  // 用于存储悔棋记录
-
+let gameResult = 0;  // 游戏结果，0表示平局，1表示红方胜利，2表示蓝方胜利
 const cells = document.querySelectorAll(".cell");// html的类为一级，名称为二级，属性为三级，形如div.cell.red
 cells.forEach(cell => {
   cell.addEventListener("click", () => {
@@ -31,6 +31,11 @@ function handleMove(col) {
     alert("游戏已结束，请重新开始！");
     return;  // 如果游戏已经结束，直接返回
   }
+  if (moveHistory.length >= 42) {
+    alert("游戏平局！");
+    gameOver = true;  // 设置游戏结束标志
+    return;  // 如果棋盘已满，直接返回
+  }
   // 从底部向上找空位
   for (let row = 5; row >= 0; row--) {
     const target = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
@@ -41,7 +46,7 @@ function handleMove(col) {
         target.classList.remove("falling"); // 动画结束后移除下落动画
       }, 500); // 假设下落动画持续500毫秒
       boardState[row][col] = currentPlayer;  // 更新数据结构
-      moveHistory.push({ row, col, player: currentPlayer });
+      moveHistory.push({ row, col});
       // 检查是否有玩家获胜，注意要延后判断
       setTimeout(() => {
   if (checkWin(boardState, currentPlayer) === 1) {
@@ -62,26 +67,37 @@ function checkWin(board, player) {
   // 检查水平、垂直和对角线方向的胜利条件
   const directions = [
     { r: 0, c: 1 },   // 水平
+    { r: 0, c: -1 },  // 水平反向
     { r: 1, c: 0 },   // 垂直
+    { r: -1, c: 0 },  // 垂直反向
     { r: 1, c: 1 },   // 主对角线
-    { r: 1, c: -1 }   // 副对角线
+    { r: -1, c: -1 }, // 主对角线反向
+    { r: 1, c: -1 },   // 副对角线
+    { r: -1, c: 1 }   // 副对角线反向
   ];
 
   for (let row = 0; row < 6; row++) {
     for (let col = 0; col < 7; col++) {
       if (board[row][col] === player) {
         for (const { r, c } of directions) {
-          if (checkDirection(board, row, col, r, c, player) === 3) {
+          if (checkDirection(board, row, col, r, c, player) === 3.5) {
             highlightpotentialWin(row, col, r, c, player, 3);  // 高亮潜在胜利位置
           }
           if (checkDirection(board, row, col, r, c, player) === 4) {
             document.getElementById("gameStatus").textContent = "游戏状态：已结束";
             highlightpotentialWin(row, col, r, c, player, 4);  // 高亮潜在胜利位置
+            if (player === "red") {
+              playSound("win")
+            }
+            if (player === "blue") {
+              playSound("lose")
+            }
             setTimeout(() => { // 第二步，等待落子动画结束后高亮胜利位置
             const r2 = row + r * 3;
             const c2 = col + c * 3;
-            highlightWin(row, col, r2, c2, player === "red" ? "crimson" : "dodgerblue");
+            highlightWin(row, col, r2, c2, player === "red" ? "orange" : "dodgerblue");
             setTimeout(() => {
+              gameResult = currentPlayer === "red" ? 1 : 2;
               alert(`${player === "red" ? "红方" : "蓝方"}获胜！`);
             }, 500);  // 第三步，等待胜利动画结束后弹出获胜提示
             }, 520);
@@ -136,20 +152,32 @@ function highlightWin(r1, c1, r2, c2, color) {
   svg.appendChild(line);
 }
 
-
-
-function checkDirection(board, row, col, r, c, player) { // 检查在指定方向上的连续棋子数量
+function checkDirection(board, row, col, dr, dc, player) {
   let count = 0;
+
   for (let i = 0; i < 4; i++) {
-    const newRow = row + r * i;
-    const newCol = col + c * i;
-    if (newRow < 0 || newRow >= 6 || newCol < 0 || newCol >= 7 || board[newRow][newCol] !== player) {
-      break;  // 因为我们最多查4个，如果查到3个就越界了返回3，而不是false
+    const r = row + dr * i;
+    const c = col + dc * i;
+
+    // 越界直接失败
+    if (r < 0 || r >= 6 || c < 0 || c >= 7) return count;
+
+    const cell = board[r][c];
+
+    if (cell === player) {
+      count++;
+    } else if (cell === null && i === 3) {
+      // 第4格是空，前三个是我方 → 潜力三连
+      return 3.5;
+    } else {
+      // 中间断了（空或对手），直接返回当前计数
+      return count;
     }
-    count++;
   }
-  return count;
+
+  return count; // 能走到这里，说明是完整4连
 }
+
 
 function switchPlayer() {
   currentPlayer = currentPlayer === "red" ? "blue" : "red";  // 切换玩家
@@ -194,4 +222,46 @@ function undoMove() {
 
   currentPlayer = playerMove.player;
   document.getElementById("current-player").textContent = `当前玩家: ${currentPlayer}`;
+}
+
+function exportGameData() {
+  if (!gameOver) {
+    alert("游戏尚未结束，无法导出数据！");
+    return;
+  }
+  const data = {
+    player1: "Player",
+    player2: "AI",
+    timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
+    first_player: "Player",
+    moves: moveHistory,
+    result: gameResult  // 假设你已有 result 状态，1/2/0
+  };
+
+  const jsonStr = JSON.stringify(data, null, 2);
+  const blob = new Blob([jsonStr], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Player_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function toggleTheme() {
+  document.body.classList.toggle("dark-theme");
+}
+
+const winSound = new Audio("win.mp3");
+const loseSound = new Audio("lose.mp3");
+function playSound(flag) {
+  if (flag === "win") {
+    winSound.currentTime = 0;
+    winSound.play();
+  }
+  if (flag === "lose") {
+    loseSound.currentTime = 0;
+    loseSound.play();
+  }
 }

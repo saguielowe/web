@@ -3,6 +3,7 @@
 <head>
   <!-- 这里是网页的头部信息，不显示在网页上，但包含了元数据和样式表链接，告诉浏览器如何处理网页 -->
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- meta告诉浏览器如何编码解析，link连接样式表和外部文件-->
   <title>我的第一个网页</title>
   <link rel="stylesheet" href="style.css">
@@ -21,15 +22,14 @@
     <div class="controls">
       <h2>游戏控制</h2>
       <button id="startGame" onclick="resetGame()">开始新游戏</button>
-      <button id="resetGame" onclick="resetGame()">重置游戏</button>
       <button id="undoMove" onclick="undoMove()">悔棋</button>
-      <button id="toggleTheme">切换主题</button>
+      <button onclick="exportGameData()">导出对局数据</button>
+      <button onclick="toggleTheme()">切换主题</button>
       </div>
     <div class="status">
       <h2>游戏状态</h2>
       <p id="currentPlayer">当前玩家：红方</p>
       <p id="gameStatus">游戏状态：进行中</p>
-      <p id="moveHistory">移动历史：无</p>
       </div>
     </div>
     <script src="ai.js"></script>
