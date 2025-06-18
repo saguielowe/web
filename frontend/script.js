@@ -1,5 +1,4 @@
 const board = document.getElementById("board");
-const ai = new ai_player();  // 创建 AI 玩家实例
 // 初始化棋盘：6行7列，全是 null
 let boardState = Array.from({ length: 6 }, () => Array(7).fill(null));
 let gameOver = false;  // 游戏是否结束
@@ -15,6 +14,7 @@ for (let row = 0; row < 6; row++) {
 }
 
 let currentPlayer = "red";  // 当前玩家颜色，可为 "red" 或 "blue"
+let gameEnable = true;  // 游戏是否可进行
 let moveHistory = [];  // 用于存储悔棋记录
 let gameResult = 0;  // 游戏结果，0表示平局，1表示红方胜利，2表示蓝方胜利
 const cells = document.querySelectorAll(".cell");// html的类为一级，名称为二级，属性为三级，形如div.cell.red
@@ -26,7 +26,6 @@ cells.forEach(cell => {
 });
 
 function handleMove(col) {
-  console.log("gameOver 状态：", gameOver);
   if (gameOver) {
     alert("游戏已结束，请重新开始！");
     return;  // 如果游戏已经结束，直接返回
@@ -36,24 +35,37 @@ function handleMove(col) {
     gameOver = true;  // 设置游戏结束标志
     return;  // 如果棋盘已满，直接返回
   }
+  if (!gameEnable) {
+    alert("请等待动画完毕后再落子！");
+    return;  // 如果游戏未开始或已结束，直接返回
+  }
   // 从底部向上找空位
   for (let row = 5; row >= 0; row--) {
     const target = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
     if (!target.classList.contains("red") && !target.classList.contains("blue")) {
       target.classList.add(currentPlayer);
       target.classList.add("falling"); // 添加下落动画类
+      gameEnable = false;  // 设置游戏不可进行，等待动画结束
       setTimeout(() => {
+        gameEnable = true;  // 动画结束后恢复游戏可进行状态
         target.classList.remove("falling"); // 动画结束后移除下落动画
+        const moveNumber = moveHistory.length;  // 当前是第几步
+        const numberTag = document.createElement("span");
+        numberTag.classList.add("move-number");
+        numberTag.textContent = moveNumber;
+        const colors = ["#e74c3c", "#3498db", "#f1c40f", "#2ecc71", "#9b59b6"];
+        numberTag.style.color = colors[moveNumber % colors.length];
+        target.appendChild(numberTag);
       }, 500); // 假设下落动画持续500毫秒
       boardState[row][col] = currentPlayer;  // 更新数据结构
       moveHistory.push({ row, col});
       // 检查是否有玩家获胜，注意要延后判断
       setTimeout(() => {
-  if (checkWin(boardState, currentPlayer) === 1) {
-    gameOver = true;  // 设置游戏结束标志
-  } else {
-    switchPlayer();
-  }
+        if (checkWin(boardState, currentPlayer) === 1) {
+        gameOver = true;  // 设置游戏结束标志
+        } else {
+        switchPlayer();
+      }
       }, 520);
       return;
     }
@@ -64,6 +76,9 @@ function handleMove(col) {
 }
 
 function checkWin(board, player) {
+  document.querySelectorAll(".cell").forEach(cell => {
+    cell.classList.remove("highlight");  // 清除所有格子的高亮
+  });
   // 检查水平、垂直和对角线方向的胜利条件
   const directions = [
     { r: 0, c: 1 },   // 水平
@@ -78,10 +93,13 @@ function checkWin(board, player) {
 
   for (let row = 0; row < 6; row++) {
     for (let col = 0; col < 7; col++) {
-      if (board[row][col] === player) {
+      if (board[row][col] != null) {
         for (const { r, c } of directions) {
-          if (checkDirection(board, row, col, r, c, player) === 3.5) {
-            highlightpotentialWin(row, col, r, c, player, 3);  // 高亮潜在胜利位置
+          if (checkDirection(board, row, col, r, c, "red") === 3.5) {
+            highlightpotentialWin(row, col, r, c, "red", 3);  // 高亮潜在胜利位置
+          }
+          if (checkDirection(board, row, col, r, c, "blue") === 3.5) {
+            highlightpotentialWin(row, col, r, c, "blue", 3);  // 高亮潜在胜利位置
           }
           if (checkDirection(board, row, col, r, c, player) === 4) {
             document.getElementById("gameStatus").textContent = "游戏状态：已结束";
@@ -182,10 +200,60 @@ function checkDirection(board, row, col, dr, dc, player) {
 function switchPlayer() {
   currentPlayer = currentPlayer === "red" ? "blue" : "red";  // 切换玩家
   document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer}`;  // 更新当前玩家显示
-  const aiCol = ai.easy_move(boardState);
+  if (boardState.length === 42) {
+    gameOver = true;  // 如果棋盘已满，设置游戏结束标志
+    gameResult = 0;  // 设置游戏结果为平局
+    alert("游戏平局！");  // 弹出平局提示
+  }
   if (currentPlayer === "blue" && !gameOver)  // 如果当前是 AI 的回合且游戏未结束，注意此处默认 AI 蓝方
-    handleMove(aiCol); // AI 随机选择一个列进行落子
+    if (document.querySelector('input[name="ai"]:checked').value === "backend") {
+      handleMove(aiTurn(boardState)); // AI 随机选择一个列进行落子
+    }
+    else {
+      handleMove(Math.floor(Math.random() * 7)); // AI 随机选择一个列进行落子
+    }
 }
+
+function convertBoardForPython(board) {
+  return board.map(row =>
+    row.map(cell => {
+      if (cell === "red") return 1;
+      if (cell === "blue") return 2;
+      return 0;
+    })
+  );
+}
+
+
+// AI 落子主函数（蓝方），只调用一次
+async function aiTurn() {
+  try {
+    // 等待 Python Flask 后端返回 move: [row, col]
+    const move = await requestAIMove(boardState);
+
+    // 使用已有的落子函数（传入列）
+    handleMove(move);  // 只传列，handleMove 内部负责落子、更新状态
+  } catch (err) {
+    console.error("AI 请求失败：", err);
+    alert("AI 思考失败，请检查后端服务是否启动！");
+  }
+}
+
+async function requestAIMove(boardState) {
+  const response = await fetch("http://localhost:5000/ai-move", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ board: convertBoardForPython(boardState) })
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.move;
+}
+
 
 function resetGame() {
   boardState = Array.from({ length: 6 }, () => Array(7).fill(null));  // 重置棋盘状态
@@ -198,6 +266,7 @@ function resetGame() {
   document.querySelectorAll(".cell").forEach(cell => {
     cell.classList.remove("red", "blue", "highlight");  // 清除所有格子的样式
   });
+  document.querySelectorAll(".move-number").forEach(e => e.remove());
 }
 
 function undoMove() {
@@ -205,13 +274,17 @@ function undoMove() {
     alert("无法悔棋！");// 一悔悔两步，AI也要撤销一步
     return;
   }
-
+  document.querySelectorAll(".cell").forEach(cell => {
+    cell.classList.remove("highlight");  // 清除所有格子的高亮
+  });
   // 撤销 AI 落子
   const aiMove = moveHistory.pop();
   boardState[aiMove.row][aiMove.col] = null;
   document
     .querySelector(`.cell[data-row="${aiMove.row}"][data-col="${aiMove.col}"]`)
     .classList.remove("red", "blue");
+  document.querySelector(`.cell[data-row="${aiMove.row}"][data-col="${aiMove.col}"]`)
+    .querySelector(".move-number").remove(); // 移除落子数字标记
 
   // 撤销人类落子
   const playerMove = moveHistory.pop();
@@ -219,9 +292,9 @@ function undoMove() {
   document
     .querySelector(`.cell[data-row="${playerMove.row}"][data-col="${playerMove.col}"]`)
     .classList.remove("red", "blue");
-
-  currentPlayer = playerMove.player;
-  document.getElementById("current-player").textContent = `当前玩家: ${currentPlayer}`;
+  document.querySelector(`.cell[data-row="${playerMove.row}"][data-col="${playerMove.col}"]`)
+    .querySelector(".move-number").remove(); // 移除落子数字标记
+  checkWin(boardState, currentPlayer);  // 检查是否有玩家获胜  
 }
 
 function exportGameData() {

@@ -25,6 +25,10 @@
       <button id="undoMove" onclick="undoMove()">悔棋</button>
       <button onclick="exportGameData()">导出对局数据</button>
       <button onclick="toggleTheme()">切换主题</button>
+      <h3>游戏设置</h3>
+      <label><input type="radio" name="ai" value="frontend" checked> 本地 AI</label>
+      <label><input type="radio" name="ai" value="backend"> 云端 AI</label>
+      <label><input type="checkbox" id="showMoveNumber"> 显示标记</label>
       </div>
     <div class="status">
       <h2>游戏状态</h2>
@@ -32,7 +36,6 @@
       <p id="gameStatus">游戏状态：进行中</p>
       </div>
     </div>
-    <script src="ai.js"></script>
     <script src="script.js"></script>
 
     
