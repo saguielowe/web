@@ -39,6 +39,8 @@ function handleMove(col) {
     alert("请等待动画完毕后再落子！");
     return;  // 如果游戏未开始或已结束，直接返回
   }
+  lockSettings();  // 锁定设置，防止在游戏进行中修改设置
+  document.getElementById("gameStatus").textContent = "游戏状态：进行中";
   // 从底部向上找空位
   for (let row = 5; row >= 0; row--) {
     const target = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
@@ -49,13 +51,15 @@ function handleMove(col) {
       setTimeout(() => {
         gameEnable = true;  // 动画结束后恢复游戏可进行状态
         target.classList.remove("falling"); // 动画结束后移除下落动画
-        const moveNumber = moveHistory.length;  // 当前是第几步
-        const numberTag = document.createElement("span");
-        numberTag.classList.add("move-number");
-        numberTag.textContent = moveNumber;
-        const colors = ["#e74c3c", "#3498db", "#f1c40f", "#2ecc71", "#9b59b6"];
-        numberTag.style.color = colors[moveNumber % colors.length];
-        target.appendChild(numberTag);
+        if (document.getElementById("showMoveNumber").checked) {
+          const moveNumber = moveHistory.length;  // 当前是第几步
+          const numberTag = document.createElement("span");
+          numberTag.classList.add("move-number");
+          numberTag.textContent = moveNumber;
+          const colors = ["#e74c3c", "#3498db", "#f1c40f", "#2ecc71", "#9b59b6"];
+          numberTag.style.color = colors[moveNumber % colors.length];
+          target.appendChild(numberTag);
+        }
       }, 500); // 假设下落动画持续500毫秒
       boardState[row][col] = currentPlayer;  // 更新数据结构
       moveHistory.push({ row, col});
@@ -228,11 +232,16 @@ function convertBoardForPython(board) {
 // AI 落子主函数（蓝方），只调用一次
 async function aiTurn() {
   try {
-    // 等待 Python Flask 后端返回 move: [row, col]
-    const move = await requestAIMove(boardState);
-
+    // 等待 Python Flask 后端返回 move: [col],
+    const receive = await requestAIMove(boardState);
+    console.log("AI 返回的落子信息：", receive);
+    const move = receive[0];  // AI 返回的落子列
+    const win = receive[1];  // AI 返回的胜利状态
+    const lose = receive[2];  // AI 返回的失败状态
+    console.log(`AI 落子列: ${move}, 胜率: ${win}, 失败率: ${lose}`);
     // 使用已有的落子函数（传入列）
     handleMove(move);  // 只传列，handleMove 内部负责落子、更新状态
+    updateWinrate(win, lose); // 更新胜率
   } catch (err) {
     console.error("AI 请求失败：", err);
     alert("AI 思考失败，请检查后端服务是否启动！");
@@ -243,7 +252,7 @@ async function requestAIMove(boardState) {
   const response = await fetch("http://localhost:5000/ai-move", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ board: convertBoardForPython(boardState) })
+    body: JSON.stringify({ board: convertBoardForPython(boardState) , currentPlayer: currentPlayer })
   });
 
   if (!response.ok) {
@@ -251,7 +260,7 @@ async function requestAIMove(boardState) {
   }
 
   const data = await response.json();
-  return data.move;
+  return [data.move, data.win, data.lose];
 }
 
 
@@ -262,7 +271,7 @@ function resetGame() {
   moveHistory = [];  // 清空悔棋记录
   document.getElementById("win-line").innerHTML = ""; // 清空胜利线
   document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer}`;  // 更新当前玩家显示
-  document.getElementById("gameStatus").textContent = "游戏状态：进行中";
+  document.getElementById("gameStatus").textContent = "游戏状态：待开始";
   document.querySelectorAll(".cell").forEach(cell => {
     cell.classList.remove("red", "blue", "highlight");  // 清除所有格子的样式
   });
@@ -337,4 +346,21 @@ function playSound(flag) {
     loseSound.currentTime = 0;
     loseSound.play();
   }
+}
+
+function updateWinrate(winrate, loserate) {
+  const win = winrate / (winrate + loserate);
+  const lose = loserate / (winrate + loserate);
+  const winRateElement = document.querySelector(".winrate-bar");
+  winRateElement.querySelector(".player-a").style.width = `${win * 100}%`;
+  winRateElement.querySelector(".player-a").textContent = `${(win * 100).toFixed(1)}%`;
+  winRateElement.querySelector(".player-b").style.width = `${lose * 100}%`;
+  winRateElement.querySelector(".player-b").textContent = `${(lose * 100).toFixed(1)}%`;
+}
+
+function lockSettings() {
+  const inputs = document.querySelectorAll("input[type=checkbox], input[type=radio]");
+  inputs.forEach(input => {
+    input.disabled = true;
+  });
 }

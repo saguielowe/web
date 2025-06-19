@@ -12,6 +12,10 @@
   <h1>四子棋网页版</h1>
   <a href="https://github.com/saguielowe/connect-four">这是项目源代码</a>
   <p>这是一个简单的四子棋游戏，你可以在浏览器中与朋友对战。点击棋盘落子来与AI下棋。</p>
+  <div class="winrate-bar">
+    <div class="player-a" style="width: 50%;">50%</div>
+    <div class="player-b" style="width: 50%;">50%</div>
+  </div>
   <div class="container">
     <div class="board" id="board">
       <!-- 这里是游戏棋盘的容器，id为board -->
@@ -29,6 +33,7 @@
       <label><input type="radio" name="ai" value="frontend" checked> 本地 AI</label>
       <label><input type="radio" name="ai" value="backend"> 云端 AI</label>
       <label><input type="checkbox" id="showMoveNumber"> 显示标记</label>
+      <h4>提示：胜率计算功能需要使用云端AI。请勿在游戏进行时更改游戏设置。</h4>
       </div>
     <div class="status">
       <h2>游戏状态</h2>

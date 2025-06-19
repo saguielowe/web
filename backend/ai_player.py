@@ -49,6 +49,7 @@ class AI:
             
             if current_player == 1:
                 (p_win, p_lose) = (p_lose, p_win)
+        return p_win, p_lose
     
     def easy_move(self):
         valid_cols = get_valid_columns(self.board)

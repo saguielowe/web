@@ -121,3 +121,27 @@ body {
   }
 }
 
+.winrate-bar {
+  display: flex;
+  height: 30px;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  margin-bottom: 10px;
+}
+.player-b {
+  background: linear-gradient(to right, #4facfe, #00f2fe); /* 蓝色系 */
+  text-align: left;
+  padding-left: 10px;
+  color: white;
+  line-height: 30px;
+  font-weight: bold;
+}
+.player-a {
+  background: linear-gradient(to right, #f093fb, #f5576c); /* 红色系 */
+  text-align: right;
+  padding-right: 10px;
+  color: white;
+  line-height: 30px;
+  font-weight: bold;
+}

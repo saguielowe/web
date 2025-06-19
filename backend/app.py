@@ -10,12 +10,15 @@ def ai_move():
     print("AI 收到请求：", data)  # ✅ 看清传过来了什么
 
     board = data["board"]
+    current_player = (data["currentPlayer"] == "blue")
+    current_player = 2 - current_player
 
     try:
         ai = AI(board)
         move = ai.hard_move()
-        print("AI 落子：", move)
-        return jsonify({"move": move})
+        (win, lose) = ai.cal_winrate(-1, current_player)
+        print("AI 落子：", move, "胜率：", win, "失败率：", lose)
+        return jsonify({"move": move, "win": win, "lose": lose})
     except Exception as e:
         print("AI 计算失败：", e)
         return jsonify({"error": str(e)}), 500
