@@ -249,7 +249,7 @@ async function aiTurn() {
 }
 
 async function requestAIMove(boardState) {
-  const response = await fetch("http://localhost:5000/ai-move", {
+  const response = await fetch("https://connect-4-web.onrender.com/ai-move", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ board: convertBoardForPython(boardState) , currentPlayer: currentPlayer })
