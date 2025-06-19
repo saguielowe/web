@@ -24,8 +24,44 @@ cells.forEach(cell => {
     handleMove(col);
   });
 });
+setSocketSettings();
+function setSocketSettings() {
+    // 建立连接
+const socket = io("https://connect-4-web.onrender.com");  // 初始化 Socket.IO 客户端
 
-function handleMove(col) {
+// 监听：房间创建成功
+socket.on("room_created", data => {
+  const roomID = data.room;
+  console.log("房间号：", roomID);
+  // TODO：显示到页面
+});
+
+// 监听：加入成功
+socket.on("join_success", data => {
+  console.log("已加入房间：", data.room);
+  alert("加入成功，等待游戏开始...");
+});
+
+// 监听：游戏开始
+socket.on("start_game", () => {
+  console.log("开始对战！");
+  // 设置游戏状态为“进行中”
+});
+
+// 监听：对方落子
+socket.on("opponent_move", data => {
+  const move = data.move;
+  handleMove(move);  // 用已有函数执行对方落子
+});
+
+// 监听：对方掉线
+socket.on("opponent_disconnected", () => {
+  alert("对手已断开连接，游戏终止！");
+});
+
+}
+
+function handleMove(col, debug = false) {
   if (gameOver) {
     alert("游戏已结束，请重新开始！");
     return;  // 如果游戏已经结束，直接返回
@@ -35,7 +71,7 @@ function handleMove(col) {
     gameOver = true;  // 设置游戏结束标志
     return;  // 如果棋盘已满，直接返回
   }
-  if (!gameEnable) {
+  if (!gameEnable && debug === false) {
     alert("请等待动画完毕后再落子！");
     return;  // 如果游戏未开始或已结束，直接返回
   }
@@ -47,9 +83,8 @@ function handleMove(col) {
     if (!target.classList.contains("red") && !target.classList.contains("blue")) {
       target.classList.add(currentPlayer);
       target.classList.add("falling"); // 添加下落动画类
-      gameEnable = false;  // 设置游戏不可进行，等待动画结束
+      gameEnable = false;  // 设置游戏不可进行，等待对手落子
       setTimeout(() => {
-        gameEnable = true;  // 动画结束后恢复游戏可进行状态
         target.classList.remove("falling"); // 动画结束后移除下落动画
         if (document.getElementById("showMoveNumber").checked) {
           const moveNumber = moveHistory.length;  // 当前是第几步
@@ -200,7 +235,6 @@ function checkDirection(board, row, col, dr, dc, player) {
   return count; // 能走到这里，说明是完整4连
 }
 
-
 function switchPlayer() {
   currentPlayer = currentPlayer === "red" ? "blue" : "red";  // 切换玩家
   document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer}`;  // 更新当前玩家显示
@@ -211,11 +245,12 @@ function switchPlayer() {
   }
   if (currentPlayer === "blue" && !gameOver)  // 如果当前是 AI 的回合且游戏未结束，注意此处默认 AI 蓝方
     if (document.querySelector('input[name="ai"]:checked').value === "backend") {
-      handleMove(aiTurn(boardState)); // AI 随机选择一个列进行落子
+      aiTurn(boardState); // AI 随机选择一个列进行落子
     }
     else {
-      handleMove(Math.floor(Math.random() * 7)); // AI 随机选择一个列进行落子
+      handleMove(Math.floor(Math.random() * 7), true); // AI 随机选择一个列进行落子
     }
+    gameEnable = true;  // AI 思考完毕后恢复游戏可进行状态
 }
 
 function convertBoardForPython(board) {
@@ -240,7 +275,7 @@ async function aiTurn() {
     const lose = receive[2];  // AI 返回的失败状态
     console.log(`AI 落子列: ${move}, 胜率: ${win}, 失败率: ${lose}`);
     // 使用已有的落子函数（传入列）
-    handleMove(move);  // 只传列，handleMove 内部负责落子、更新状态
+    handleMove(move, true);  // 只传列，handleMove 内部负责落子、更新状态，true 表示必须通过 AI 落子
     updateWinrate(win, lose); // 更新胜率
   } catch (err) {
     console.error("AI 请求失败：", err);
@@ -269,6 +304,7 @@ function resetGame() {
   gameOver = false;  // 重置游戏结束标志
   currentPlayer = "red";  // 重置当前玩家为红方
   moveHistory = [];  // 清空悔棋记录
+  gameEnable = true;  // 重置游戏可进行状态
   document.getElementById("win-line").innerHTML = ""; // 清空胜利线
   document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer}`;  // 更新当前玩家显示
   document.getElementById("gameStatus").textContent = "游戏状态：待开始";
@@ -338,10 +374,6 @@ function exportGameData() {
   URL.revokeObjectURL(url);
 }
 
-function toggleTheme() {
-  document.body.classList.toggle("dark-theme");
-}
-
 const winSound = new Audio("win.mp3");
 const loseSound = new Audio("lose.mp3");
 function playSound(flag) {
@@ -377,4 +409,48 @@ function unlockSettings() {
   inputs.forEach(input => {
     input.disabled = false;
   });
+}
+
+function loadPreferences() {
+  // 加载 AI 来源（默认 frontend）
+  const savedAI = localStorage.getItem("aiSource");
+  if (savedAI === "backend") {
+    document.getElementById("ai-backend").checked = true;
+  } else {
+    document.getElementById("ai-frontend").checked = true;
+  }
+
+  // 加载显示标记选项（默认 false）
+  const showNumber = localStorage.getItem("showMoveNumber") === "true";
+  document.getElementById("showMoveNumber").checked = showNumber;
+}
+
+function savePreferences() {
+  // 保存 AI 来源
+  const aiSource = document.querySelector('input[name="ai"]:checked').value;
+  localStorage.setItem("aiSource", aiSource);
+
+  // 保存显示标记选项
+  const showMoveNumber = document.getElementById("showMoveNumber").checked;
+  localStorage.setItem("showMoveNumber", showMoveNumber.toString());
+}
+
+function attachPreferenceListeners() {
+  document.querySelectorAll('input[name="ai"]').forEach((radio) => {
+    radio.addEventListener("change", savePreferences);
+  });
+  document.getElementById("showMoveNumber").addEventListener("change", savePreferences);
+}
+
+function createRoom() {
+  socket.emit("request_create_room");
+}
+
+function joinRoom() {
+  const roomId = document.getElementById("room-id-input").value;
+  if (roomId) {
+    socket.emit("join_room", { room: roomId });
+  } else {
+    alert("请输入房间号！");
+  }
 }
