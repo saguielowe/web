@@ -12,7 +12,7 @@ for (let row = 0; row < 6; row++) {
     board.appendChild(cell);
   }
 }
-
+unlockSettings();  // 解锁设置，允许修改游戏设置
 let currentPlayer = "red";  // 当前玩家颜色，可为 "red" 或 "blue"
 let gameEnable = true;  // 游戏是否可进行
 let moveHistory = [];  // 用于存储悔棋记录
@@ -276,6 +276,7 @@ function resetGame() {
     cell.classList.remove("red", "blue", "highlight");  // 清除所有格子的样式
   });
   document.querySelectorAll(".move-number").forEach(e => e.remove());
+  unlockSettings();  // 解锁设置，允许修改游戏设置
 }
 
 function undoMove() {
@@ -311,9 +312,15 @@ function exportGameData() {
     alert("游戏尚未结束，无法导出数据！");
     return;
   }
+  if (document.querySelector('input[name="ai"]:checked').value === "backend") {
+    ai_difficulty = "AI-困难";
+  }
+  else {
+    ai_difficulty = "AI-简单";
+  }
   const data = {
     player1: "Player",
-    player2: "AI",
+    player2: ai_difficulty,
     timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
     first_player: "Player",
     moves: moveHistory,
@@ -362,5 +369,12 @@ function lockSettings() {
   const inputs = document.querySelectorAll("input[type=checkbox], input[type=radio]");
   inputs.forEach(input => {
     input.disabled = true;
+  });
+}
+
+function unlockSettings() {
+  const inputs = document.querySelectorAll("input[type=checkbox], input[type=radio]");
+  inputs.forEach(input => {
+    input.disabled = false;
   });
 }
