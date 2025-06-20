@@ -381,7 +381,7 @@ function unlockSettings() {
 
 let socket = null;
 function initSocket() { // 初始化 socket.io 连接，一个socket只需要配置一次
-  socket = io("http://connect-4-room.onrender.com");
+  socket = io("https://connect-4-room.onrender.com");
 
     socket.on("connect", () => {
       console.log("已连接到服务器");
