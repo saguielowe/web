@@ -4,14 +4,15 @@
   <!-- 这里是网页的头部信息，不显示在网页上，但包含了元数据和样式表链接，告诉浏览器如何处理网页 -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <!-- meta告诉浏览器如何编码解析，link连接样式表和外部文件-->
   <title>我的第一个网页</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <h1>四子棋网页版</h1>
-  <a href="https://github.com/saguielowe/connect-four">这是项目源代码</a>
-  <p>这是一个简单的四子棋游戏，你可以在浏览器中与朋友对战。点击棋盘落子来与AI下棋。</p>
+  <a href="https://github.com/saguielowe/web">这是项目源代码</a>
+  <p>这是一个简单的四子棋游戏，你可以与朋友对战，或与AI下棋。</p>
   <div class="winrate-bar">
     <div class="player-a" style="width: 50%;">50%</div>
     <div class="player-b" style="width: 50%;">50%</div>
@@ -24,26 +25,33 @@
       <!-- 这是一个SVG元素，用于显示游戏胜利时的连线 -->
       </svg>
     <div class="controls">
-      <h2>游戏控制</h2>
+      <h3>游戏控制</h3>
       <button id="startGame" onclick="resetGame()">开始新游戏</button>
       <button id="undoMove" onclick="undoMove()">悔棋</button>
       <button onclick="exportGameData()">导出对局数据</button>
-      <button onclick="toggleTheme()">切换主题</button>
       <h3>游戏设置</h3>
-      <label><input type="radio" name="ai" value="frontend" checked> 本地 AI</label>
-      <label><input type="radio" name="ai" value="backend"> 云端 AI</label>
+      <label><input type="radio" name="ai" value="frontend" id="ai-frontend"> 本地 AI</label>
+      <label><input type="radio" name="ai" value="backend" id="ai-backend"> 云端 AI</label>
       <label><input type="checkbox" id="showMoveNumber"> 显示标记</label>
-      <h4>提示：胜率计算功能需要使用云端AI。请勿在游戏进行时更改游戏设置。</h4>
-      </div>
-    <div class="status">
-      <h2>游戏状态</h2>
-      <p id="currentPlayer">当前玩家：红方</p>
-      <p id="gameStatus">游戏状态：进行中</p>
-      </div>
+      <p>胜率计算功能需要使用云端AI，若选择本地AI，胜率条信息不准确。由于网速原因，云端AI反应可能较慢，请耐心等待。</p>
+      <h3>游戏状态</h3>
+      <p id="currentPlayer">当前玩家：red</p>
+      <p id="gameStatus">游戏状态：待开始</p>
+    </div>
+    <div class="roomscontrol">
+      <h3>房间管理</h3>
+      <p>你可以创建或加入房间，并与其他玩家对战。</p>
+      <button id="createRoom" onclick="createRoom()">创建房间</button>
+      <button id="joinRoom" onclick="joinRoom()">加入房间</button>
+      <input type="text" id="room-id-input" placeholder="输入房间号（6位）">
+      <h3>你所在的房间</h3>
+      <p>你可以在这里查看当前所在的房间信息，等待人满后开始对战。</p>
+      <p id="room-id-label">房间号：未加入任何房间</p>
+      <p id="room-status-label">房间状态：空闲</p>
+
     </div>
     <script src="script.js"></script>
-
-    
+  </div>
   <footer>
     <small>版权所有 &copy; 2025</small>
   </footer>
