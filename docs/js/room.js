@@ -1,3 +1,21 @@
+// 获取 URL 参数
+document.addEventListener("DOMContentLoaded", function() {
+	const urlParams = new URLSearchParams(window.location.search);
+	const roomId = urlParams.get('room');
+  const oppId = urlParams.get('oppsid');
+  const host = urlParams.get('host'); // true表示房主
+  if (host === "true" && document.getElementById("startGame")) {
+    document.getElementById("startGame").style.display = "block";
+  }
+	const roomIdElement = document.getElementById("roomId");
+	if (roomIdElement) {
+		roomIdElement.textContent = "四子棋 - 房间号: " + roomId;
+	}
+  const opponentIdElement = document.getElementById("opponent-id");
+  if (opponentIdElement) {
+    opponentIdElement.textContent = "对手ID: " + oppId;
+  }
+});
 const board = document.getElementById("board");
 // 初始化棋盘：6行7列，全是 null
 let boardState = Array.from({ length: 6 }, () => Array(7).fill(null));
@@ -12,7 +30,6 @@ for (let row = 0; row < 6; row++) {
     board.appendChild(cell);
   }
 }
-unlockSettings();  // 解锁设置，允许修改游戏设置
 let currentPlayer = "red";  // 当前玩家颜色，可为 "red" 或 "blue"
 let gameEnable = true;  // 游戏是否可进行
 let moveHistory = [];  // 用于存储悔棋记录
@@ -200,7 +217,6 @@ function checkDirection(board, row, col, dr, dc, player) {
   return count; // 能走到这里，说明是完整4连
 }
 
-
 function switchPlayer() {
   currentPlayer = currentPlayer === "red" ? "blue" : "red";  // 切换玩家
   document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer}`;  // 更新当前玩家显示
@@ -227,7 +243,6 @@ function convertBoardForPython(board) {
     })
   );
 }
-
 
 // AI 落子主函数（蓝方），只调用一次
 async function aiTurn() {
@@ -262,7 +277,6 @@ async function requestAIMove(boardState) {
   const data = await response.json();
   return [data.move, data.win, data.lose];
 }
-
 
 function resetGame() {
   boardState = Array.from({ length: 6 }, () => Array(7).fill(null));  // 重置棋盘状态
@@ -338,10 +352,6 @@ function exportGameData() {
   URL.revokeObjectURL(url);
 }
 
-function toggleTheme() {
-  document.body.classList.toggle("dark-theme");
-}
-
 const winSound = new Audio("win.mp3");
 const loseSound = new Audio("lose.mp3");
 function playSound(flag) {
@@ -377,73 +387,4 @@ function unlockSettings() {
   inputs.forEach(input => {
     input.disabled = false;
   });
-}
-
-let socket = null;
-function initSocket() { // 初始化 socket.io 连接，一个socket只需要配置一次
-  socket = io("https://connect-4-room.onrender.com");
-
-    socket.on("connect", () => {
-      console.log("已连接到服务器");
-    });
-
-    socket.on("room-message", msg => {
-      console.log("收到房间消息：", msg);
-    });
-
-    socket.on("room-created", (roomId) => {
-      console.log("你的房间号是", roomId);
-      document.getElementById("room-id-label").textContent = `房间号：${roomId}`;
-      document.getElementById("room-status-label").textContent = "房间状态：等待对方加入";
-    });
-
-    socket.on("room-joined", (msg) => {
-      console.log("已成功加入房间：", msg.roomId);
-      document.getElementById("room-id-label").textContent = `房间号：${msg.roomId}`;
-      document.getElementById("room-status-label").textContent = "房间状态：已成功加入房间";
-    });
-
-    socket.on("disconnect", () => {
-      console.log("与服务器断开连接");
-      document.getElementById("room-id-input").value = roomId;  // 将房间ID填入输入框
-      document.getElementById("room-status-label").textContent = "房间状态：您已断开连接，请重试";
-      socket = null;  // 清除 socket 实例
-    });
-
-    socket.on("room-error", (msg) => {
-      console.error("房间错误：", msg.message);
-      alert(msg.message);  // 弹出错误提示
-      document.getElementById("room-id-label").textContent = `房间号：${roomId}`;
-      document.getElementById("room-id-input").value = roomId;  // 将房间ID填入输入框
-      document.getElementById("room-status-label").textContent = "房间状态：错误，请检查控制台";
-    });
-
-    socket.on("start-game", (msg) => {
-      console.log("游戏开始：", msg);
-      document.getElementById("room-status-label").textContent = "房间状态：游戏开始";
-    });
-
-    socket.on("opponent-left", (msg) => {
-      console.log("对手已离开房间：", msg.message);
-      document.getElementById("room-status-label").textContent = "房间状态：对手已离线。";
-    });
-}
-function createRoom() {
-  if (!socket) {
-    initSocket();  // 如果 socket 未初始化，先初始化
-  }
-  socket.emit("create-room");
-  console.log("创建房间请求已发送");
-}
-function joinRoom() {
-  const roomId = document.getElementById("room-id-input").value;
-  if (!roomId) {
-    alert("请输入房间ID！");
-    return;  // 如果没有输入房间ID，直接返回
-  }
-  if (!socket) {
-    initSocket();  // 如果 socket 未初始化，先初始化
-  }
-  socket.emit("join-room", roomId);
-  console.log(`加入房间请求已发送，房间ID: ${roomId}`);
 }

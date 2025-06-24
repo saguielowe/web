@@ -84,11 +84,13 @@ io.on("connection", (socket) => {
       });
       socket.emit("start-game", {
         roomId: roomId,
-        message: rooms[roomId].players,
+        players: rooms[roomId].players, //players[0]是房主
       });
       console.log(`Room ${roomId} is ready with players: ${rooms[roomId].players.join(", ")}`);
+      //initGame();
     }
   });
+
 });
 
 // 启动服务

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <!-- meta告诉浏览器如何编码解析，link连接样式表和外部文件-->
+  <title>房间对战页面</title>
+  <link rel="stylesheet" href="style/room.css">
+</head>
+<body>
+  <span id="roomId">四子棋 - 房间号：</span>
+  <p>这是你和对手的专属房间，你们可以使用这个房间号下棋。</p>
+  <div class="winrate-bar">
+    <div class="player-a" style="width: 50%;">50%</div>
+    <div class="player-b" style="width: 50%;">50%</div>
+  </div>
+  <div class="container">
+    <div class="board" id="board">
+      <!-- 这里是游戏棋盘的容器，id为board -->
+      </div>
+    <svg id="win-line" width="100%" height="100%">
+      <!-- 这是一个SVG元素，用于显示游戏胜利时的连线 -->
+      </svg>
+    <div class="controls">
+      <h3>游戏控制</h3>
+      <button id="startGame" onclick="resetGame()" style="display: none;">开始新游戏</button>
+      <button id="undoMove" onclick="undoMove()">悔棋</button>
+      <button onclick="exportGameData()">导出对局数据</button>
+      <h3>游戏状态</h3>
+      <label><input type="checkbox" id="showMoveNumber"> 显示标记</label>
+      <p id="currentPlayer">当前轮到：你</p>
+      <p id="gameStatus">游戏状态：待开始</p>
+    </div>
+    <div class="chat-box">
+      <span id="opponent-id">对手ID</span>
+      <label><input type="text" id="chat" placeholder="输入聊天内容"></label>
+      <button id="sendChat" onclick="sendChat()">发送</button>
+      <h3>聊天记录：</h3>
+        <ul id="chat-list"></ul>
+    </div>    
+  </div>
+  <script src="js/room.js"></script>
+  <footer>
+    <small>版权所有 &copy; 2025</small>
+  </footer>
+</body>
+</html>
