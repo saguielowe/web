@@ -12,7 +12,7 @@
 <body>
   <h1>四子棋网页版</h1>
   <a href="https://github.com/saguielowe/web">这是项目源代码</a>
-  <p>这是一个简单的四子棋游戏，你可以与朋友对战，或与AI下棋。</p>
+  <p id="welcome">欢迎，游客_XXX！</p>
   <div class="winrate-bar">
     <div class="player-a" style="width: 50%;">50%</div>
     <div class="player-b" style="width: 50%;">50%</div>
@@ -52,7 +52,7 @@
     </div>
     <script src="js/script.js"></script>
   </div>
-  <div id="leaderboard-container">
+  <div id="leaderboard-container" style="display: contents;">
   <h2>🏆 Leaderboard</h2>
   <table id="leaderboard">
     <thead>
@@ -68,6 +68,7 @@
       <!-- JS 动态填充 -->
     </tbody>
   </table>
+  <button id="rename" onclick="changeUsername()" style="margin-top: 10px; margin-bottom: 10px;">修改昵称</button>
   </div>
   <footer>
     <small>版权所有 &copy; 2025</small>

@@ -1,5 +1,6 @@
 const board = document.getElementById("board");
-const sql_base = "http://127.0.0.1:5000"; // 后端数据库的 URL
+const sql_base = "https://data-ob39.onrender.com"; // 后端数据库的 URL
+//const sql_base = "http://localhost:5000"; // 本地测试时的 URL
 // 初始化棋盘：6行7列，全是 null
 let boardState = Array.from({ length: 6 }, () => Array(7).fill(null));
 let gameOver = false;  // 游戏是否结束
@@ -42,6 +43,10 @@ function handleMove(col) {
   if (!gameEnable) {
     alert("请等待动画完毕后再落子！");
     return;  // 如果游戏未开始或已结束，直接返回
+  }
+  if (!document.querySelector('input[name="ai"]:checked')) {
+    // 自动选择 AI 难度
+    document.querySelector('input[name="ai"][value="frontend"]').checked = true;  // 默认选择简单 AI
   }
   lockSettings();  // 锁定设置，防止在游戏进行中修改设置
   document.getElementById("gameStatus").textContent = "游戏状态：进行中";
@@ -284,30 +289,39 @@ function resetGame() {
 
 function undoMove() {
   if (moveHistory.length <= 1 || gameOver) {
-    alert("无法悔棋！");// 一悔悔两步，AI也要撤销一步
+    alert("无法悔棋！");
     return;
   }
+  
   document.querySelectorAll(".cell").forEach(cell => {
-    cell.classList.remove("highlight");  // 清除所有格子的高亮
+    cell.classList.remove("highlight");
   });
+  
   // 撤销 AI 落子
   const aiMove = moveHistory.pop();
   boardState[aiMove.row][aiMove.col] = null;
-  document
-    .querySelector(`.cell[data-row="${aiMove.row}"][data-col="${aiMove.col}"]`)
-    .classList.remove("red", "blue");
-  document.querySelector(`.cell[data-row="${aiMove.row}"][data-col="${aiMove.col}"]`)
-    .querySelector(".move-number").remove(); // 移除落子数字标记
-
+  const aiCell = document.querySelector(`.cell[data-row="${aiMove.row}"][data-col="${aiMove.col}"]`);
+  aiCell.classList.remove("red", "blue");
+  
+  // 安全移除数字标记
+  const aiMoveNumber = aiCell.querySelector(".move-number");
+  if (aiMoveNumber) {
+    aiMoveNumber.remove();
+  }
+  
   // 撤销人类落子
   const playerMove = moveHistory.pop();
   boardState[playerMove.row][playerMove.col] = null;
-  document
-    .querySelector(`.cell[data-row="${playerMove.row}"][data-col="${playerMove.col}"]`)
-    .classList.remove("red", "blue");
-  document.querySelector(`.cell[data-row="${playerMove.row}"][data-col="${playerMove.col}"]`)
-    .querySelector(".move-number").remove(); // 移除落子数字标记
-  checkWin(boardState, currentPlayer);  // 检查是否有玩家获胜  
+  const playerCell = document.querySelector(`.cell[data-row="${playerMove.row}"][data-col="${playerMove.col}"]`);
+  playerCell.classList.remove("red", "blue");
+  
+  // 安全移除数字标记
+  const playerMoveNumber = playerCell.querySelector(".move-number");
+  if (playerMoveNumber) {
+    playerMoveNumber.remove();
+  }
+  
+  checkWin(boardState, currentPlayer);
 }
 
 function exportGameData() {
@@ -377,6 +391,19 @@ function unlockSettings() {
     input.disabled = false;
   });
 }
+
+if (!localStorage.getItem("userId")) {
+  localStorage.setItem("userId", crypto.randomUUID());
+}
+
+if (!localStorage.getItem("username")) {
+  localStorage.setItem("username", "游客_" + Math.floor(Math.random() * 10000));
+}
+
+const userId = localStorage.getItem("userId");
+const username = localStorage.getItem("username");
+console.log("用户ID:", userId);
+document.getElementById("welcome").textContent = `欢迎，${username}！`;
 
 let socket = null;
 function initSocket() { // 初始化 socket.io 连接，一个socket只需要配置一次
@@ -495,7 +522,7 @@ async function updateLeaderboard() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${idx + 1}</td>
-      <td>${row.ip}</td>
+      <td>${row.username}</td>
       <td>${row.total_score}</td>
       <td>${row.total_games}</td>
       <td>${row.win_rate}</td>
@@ -515,8 +542,12 @@ async function submitScore(score, didWin) {
                 "Content-Type": "application/json",
                 "Accept": "application/json" // 明确指定期望的响应类型
             },
-            body: JSON.stringify({ score: score, win: didWin }),
-            redirect: 'error' // 阻止自动重定向
+            body: JSON.stringify({
+                userId: localStorage.getItem("userId"),
+                username: localStorage.getItem("username"),
+                score: score,
+                win: didWin
+            })
         });
         
         console.log("Response status:", res.status);
@@ -530,19 +561,37 @@ async function submitScore(score, didWin) {
         
         const result = await res.json();
         console.log("Score submitted:", result);
+        updateLeaderboard(); // 提交成功后刷新排行榜
     } catch (err) {
         console.error("Submit score failed:", err);
     }
 }
 
-function gameEnd(result) {
-  // 防止重复调用
-  if (gameEnd.called) {
-    console.log("gameEnd已经被调用过，跳过");
-    return;
+async function changeUsername() {
+  const newName = prompt("请输入新昵称：", localStorage.getItem("username"));
+  if (!newName || newName.trim() === "") return;
+
+  const userId = localStorage.getItem("userId");
+  const res = await fetch(`${sql_base}/update_username`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      userId: userId,
+      newUsername: newName.trim()
+    })
+  });
+
+  const data = await res.json();
+  if (data.status === "ok") {
+    localStorage.setItem("username", newName.trim());
+    alert("昵称修改成功！");
+    updateLeaderboard(); // 刷新排行榜
+  } else {
+    alert("修改失败：" + data.message);
   }
-  gameEnd.called = true;
-  
+}
+
+function gameEnd(result) {
   if (result === 1) {
     playSound("win");
   }
