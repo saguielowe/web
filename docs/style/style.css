@@ -154,3 +154,29 @@ body {
   border-radius: 5px;
   box-sizing: border-box;
 }
+
+#leaderboard-container {
+  width: 300px;
+  margin: 20px auto;
+  padding: 10px;
+  background: #f5f5f5;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  font-family: sans-serif;
+}
+
+#leaderboard {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+#leaderboard th, #leaderboard td {
+  padding: 5px;
+  text-align: center;
+  border-bottom: 1px solid #ddd;
+}
+
+#leaderboard th {
+  background: #eee;
+}

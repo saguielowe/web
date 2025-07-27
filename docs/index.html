@@ -40,7 +40,7 @@
     </div>
     <div class="roomscontrol">
       <h3>房间管理</h3>
-      <p>你可以创建或加入房间，并与其他玩家对战。</p>
+      <p>你可以创建或加入房间，并与其他玩家对战。注意，你不能同时在两个房间内。</p>
       <button id="createRoom" onclick="createRoom()">创建房间</button>
       <button id="joinRoom" onclick="joinRoom()">加入房间</button>
       <input type="text" id="room-id-input" placeholder="输入房间号（6位）">
@@ -51,6 +51,23 @@
 
     </div>
     <script src="js/script.js"></script>
+  </div>
+  <div id="leaderboard-container">
+  <h2>🏆 Leaderboard</h2>
+  <table id="leaderboard">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Player</th>
+        <th>总分</th>
+        <th>局数</th>
+        <th>胜率</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- JS 动态填充 -->
+    </tbody>
+  </table>
   </div>
   <footer>
     <small>版权所有 &copy; 2025</small>

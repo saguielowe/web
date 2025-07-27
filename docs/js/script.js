@@ -1,4 +1,5 @@
 const board = document.getElementById("board");
+const sql_base = "http://127.0.0.1:5000"; // 后端数据库的 URL
 // 初始化棋盘：6行7列，全是 null
 let boardState = Array.from({ length: 6 }, () => Array(7).fill(null));
 let gameOver = false;  // 游戏是否结束
@@ -13,6 +14,7 @@ for (let row = 0; row < 6; row++) {
   }
 }
 unlockSettings();  // 解锁设置，允许修改游戏设置
+updateLeaderboard();  // 初始化排行榜
 let currentPlayer = "red";  // 当前玩家颜色，可为 "red" 或 "blue"
 let winRef = null;  // 用于存储新窗口的引用
 let gameEnable = true;  // 游戏是否可进行
@@ -34,6 +36,7 @@ function handleMove(col) {
   if (moveHistory.length >= 42) {
     alert("游戏平局！");
     gameOver = true;  // 设置游戏结束标志
+    gameEnd(0);  // 调用游戏结束函数，传入平局结果
     return;  // 如果棋盘已满，直接返回
   }
   if (!gameEnable) {
@@ -84,6 +87,7 @@ function checkWin(board, player) {
   document.querySelectorAll(".cell").forEach(cell => {
     cell.classList.remove("highlight");  // 清除所有格子的高亮
   });
+  
   // 检查水平、垂直和对角线方向的胜利条件
   const directions = [
     { r: 0, c: 1 },   // 水平
@@ -107,24 +111,25 @@ function checkWin(board, player) {
             highlightpotentialWin(row, col, r, c, "blue", 3);  // 高亮潜在胜利位置
           }
           if (checkDirection(board, row, col, r, c, player) === 4) {
-            document.getElementById("gameStatus").textContent = "游戏状态：已结束";
+            // 防止重复调用gameEnd
+            if (gameOver) return 1; // 如果游戏已经结束，直接返回
+            
+            document.getElementById("gameStatus").textContent = `游戏结束：${player === "red" ? "红方" : "蓝方"}获胜！`;
             highlightpotentialWin(row, col, r, c, player, 4);  // 高亮潜在胜利位置
-            if (player === "red") {
-              playSound("win")
-            }
-            if (player === "blue") {
-              playSound("lose")
-            }
-            setTimeout(() => { // 第二步，等待落子动画结束后高亮胜利位置
-            const r2 = row + r * 3;
-            const c2 = col + c * 3;
-            highlightWin(row, col, r2, c2, player === "red" ? "orange" : "dodgerblue");
+            gameResult = player === "red" ? 1 : 2;
+            gameOver = true;  // 立即设置游戏结束标志，防止重复调用
+            
+            // 立即调用gameEnd，不要延时
+            gameEnd(gameResult);
+            
+            // 动画效果单独处理，不影响游戏逻辑
             setTimeout(() => {
-              gameResult = currentPlayer === "red" ? 1 : 2;
-              alert(`${player === "red" ? "红方" : "蓝方"}获胜！`);
-            }, 500);  // 第三步，等待胜利动画结束后弹出获胜提示
+              const r2 = row + r * 3;
+              const c2 = col + c * 3;
+              highlightWin(row, col, r2, c2, player === "red" ? "orange" : "dodgerblue");
             }, 520);
-            return 1;  // 无视延时，返回1表示有玩家获胜
+            
+            return 1;  // 返回1表示有玩家获胜
           }
         }
       }
@@ -433,7 +438,25 @@ function initSocket() { // 初始化 socket.io 连接，一个socket只需要配
     socket.on("opponent-left", (msg) => {
       console.log("对手已离开房间：", msg.message);
       document.getElementById("room-status-label").textContent = "房间状态：对手已离线。";
+      winRef.postMessage({type: "error"}, "*"); // 向新窗口发送消息
     });
+
+    socket.on("update-board", (data) => {
+      console.log("更新棋盘：", data);
+      const { row, col, player } = data;
+      const target = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+      if (target) {
+        target.classList.add(player);
+        target.classList.add("falling"); // 添加下落动画类
+        setTimeout(() => {
+          target.classList.remove("falling"); // 动画结束后移除下落动画
+        }, 500); // 假设下落动画持续500毫秒
+      }
+      boardState[row][col] = player;  // 更新数据结构
+      moveHistory.push({ row, col });  // 记录落子历史
+      checkWin(boardState, player);  // 检查是否有玩家获胜
+    });
+
 }
 
 function createRoom() {
@@ -460,4 +483,73 @@ function joinRoom() {
   if (winRef) {
     winRef.document.write("<p>等待匹配对手...</p>"); // 在新窗口中显示等待信息
   }
+}
+
+async function updateLeaderboard() {
+  const res = await fetch(`${sql_base}/leaderboard`);
+  const data = await res.json();
+
+  const tbody = document.querySelector("#leaderboard tbody");
+  tbody.innerHTML = "";
+  data.forEach((row, idx) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${idx + 1}</td>
+      <td>${row.ip}</td>
+      <td>${row.total_score}</td>
+      <td>${row.total_games}</td>
+      <td>${row.win_rate}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function submitScore(score, didWin) {
+    try {
+        console.log("提交前焦点元素：", document.activeElement);
+        console.log("提交前URL：", window.location.href);
+        
+        const res = await fetch(`${sql_base}/submit_score`, {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                "Accept": "application/json" // 明确指定期望的响应类型
+            },
+            body: JSON.stringify({ score: score, win: didWin }),
+            redirect: 'error' // 阻止自动重定向
+        });
+        
+        console.log("Response status:", res.status);
+        console.log("Response headers:", [...res.headers.entries()]);
+        console.log("提交后焦点元素：", document.activeElement);
+        console.log("提交后URL：", window.location.href);
+        
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        const result = await res.json();
+        console.log("Score submitted:", result);
+    } catch (err) {
+        console.error("Submit score failed:", err);
+    }
+}
+
+function gameEnd(result) {
+  // 防止重复调用
+  if (gameEnd.called) {
+    console.log("gameEnd已经被调用过，跳过");
+    return;
+  }
+  gameEnd.called = true;
+  
+  if (result === 1) {
+    playSound("win");
+  }
+  if (result === 2) {
+    playSound("lose");
+  }
+  let didWin = (result === 1);
+  let score = (result === 1) ? 3 : (result === 0 ? 1 : 0);
+  submitScore(score, didWin);
 }
