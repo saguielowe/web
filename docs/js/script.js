@@ -19,6 +19,7 @@ updateLeaderboard();  // 初始化排行榜
 let currentPlayer = "red";  // 当前玩家颜色，可为 "red" 或 "blue"
 let winRef = null;  // 用于存储新窗口的引用
 let gameEnable = true;  // 游戏是否可进行
+let waitforAI = false;  // 是否等待 AI 落子
 let moveHistory = [];  // 用于存储悔棋记录
 let gameResult = 0;  // 游戏结果，0表示平局，1表示红方胜利，2表示蓝方胜利
 const cells = document.querySelectorAll(".cell");// html的类为一级，名称为二级，属性为三级，形如div.cell.red
@@ -30,6 +31,7 @@ cells.forEach(cell => {
 });
 
 function handleMove(col) {
+  console.log(`处理落子：列 ${col}, 当前玩家：${currentPlayer}，目前棋盘有 ${moveHistory.length} 步`);
   if (gameOver) {
     alert("游戏已结束，请重新开始！");
     return;  // 如果游戏已经结束，直接返回
@@ -43,6 +45,10 @@ function handleMove(col) {
   if (!gameEnable) {
     alert("请等待动画完毕后再落子！");
     return;  // 如果游戏未开始或已结束，直接返回
+  }
+  if (waitforAI && moveHistory.length % 2 === 1 && !col instanceof promise) { // 如果正在等待 AI 落子，且当前是玩家的回合
+    alert("请等待 AI 落子完成！");
+    return;  // 如果正在等待 AI 落子，直接返回
   }
   if (!document.querySelector('input[name="ai"]:checked')) {
     // 自动选择 AI 难度
@@ -72,7 +78,6 @@ function handleMove(col) {
       }, 500); // 假设下落动画持续500毫秒
       boardState[row][col] = currentPlayer;  // 更新数据结构
       moveHistory.push({ row, col});
-      // 检查是否有玩家获胜，注意要延后判断
       setTimeout(() => {
         if (checkWin(boardState, currentPlayer) === 1) {
         gameOver = true;  // 设置游戏结束标志
@@ -248,6 +253,7 @@ async function aiTurn() {
     const win = receive[1];  // AI 返回的胜利状态
     const lose = receive[2];  // AI 返回的失败状态
     console.log(`AI 落子列: ${move}, 胜率: ${win}, 失败率: ${lose}`);
+    waitforAI = false;  // AI 落子完成，允许玩家继续操作
     // 使用已有的落子函数（传入列）
     handleMove(move);  // 只传列，handleMove 内部负责落子、更新状态
     updateWinrate(win, lose); // 更新胜率
@@ -258,6 +264,7 @@ async function aiTurn() {
 }
 
 async function requestAIMove(boardState) {
+  waitforAI = true;  // 设置等待 AI 落子标志
   const response = await fetch("https://connect-4-web.onrender.com/ai-move", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -407,8 +414,8 @@ document.getElementById("welcome").textContent = `欢迎，${username}！`;
 
 let socket = null;
 function initSocket() { // 初始化 socket.io 连接，一个socket只需要配置一次
-  socket = io("https://connect-4-room.onrender.com");
-  //socket = io("http://localhost:3000"); // 本地测试时使用
+  //socket = io("https://connect-4-room.onrender.com");
+  socket = io("http://localhost:4000"); // 本地测试时使用
     socket.on("connect", () => {
       console.log("已连接到服务器");
     });
@@ -455,7 +462,8 @@ function initSocket() { // 初始化 socket.io 连接，一个socket只需要配
         oppsid = all_sid[0];  // 对手的 socket ID
       }
       console.log("对手的 socket ID:", oppsid);
-      const url = `room.html?room=${msg.roomId}&oppsid=${oppsid}&host=${all_sid[1] === oppsid}`;
+      console.log("先手的 socket ID:", msg.firstPlayer);
+      const url = `room.html?room=${msg.roomId}&oppsid=${oppsid}&host=${all_sid[1] === oppsid}&first=${msg.firstPlayer === socket.id}`;
       if (winRef) {
         winRef.location.href = url; // 更新新窗口的 URL
         winRef.focus();
@@ -469,21 +477,23 @@ function initSocket() { // 初始化 socket.io 连接，一个socket只需要配
     });
 
     socket.on("update-board", (data) => {
-      console.log("更新棋盘：", data);
-      const { row, col, player } = data;
-      const target = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-      if (target) {
-        target.classList.add(player);
-        target.classList.add("falling"); // 添加下落动画类
-        setTimeout(() => {
-          target.classList.remove("falling"); // 动画结束后移除下落动画
-        }, 500); // 假设下落动画持续500毫秒
-      }
-      boardState[row][col] = player;  // 更新数据结构
-      moveHistory.push({ row, col });  // 记录落子历史
-      checkWin(boardState, player);  // 检查是否有玩家获胜
+      console.log("收到棋盘更新消息：", data);
+      winRef.postMessage({type: "update-board", data: data}, "*"); // 向新窗口发送棋盘更新消息
     });
 
+    socket.on("game-over", (data) => {
+      winRef.postMessage({type: "game-over", data: data}, "*"); // 向新窗口发送游戏结束消息
+    });
+
+    socket.on("player-move", (data) => {
+      console.log("收到玩家落子消息：", data);
+      winRef.postMessage({type: "player-move", data: data}, "*"); // 向新窗口发送玩家落子消息
+    });
+
+    socket.on("chat-message", (data) => {
+      console.log("收到聊天消息：", data.message);
+      winRef.postMessage({type: "chat-message", data: data}, "*"); // 向新窗口发送聊天消息
+    });
 }
 
 function createRoom() {
@@ -602,3 +612,22 @@ function gameEnd(result) {
   let score = (result === 1) ? 3 : (result === 0 ? 1 : 0);
   submitScore(score, didWin);
 }
+
+window.addEventListener("message", (event) => { // 监听来自新窗口的消息，周转发给服务器
+  const data = event.data;
+  console.log("消息数据：", event.data);
+  if (data.type === "player-move") {
+    socket.emit("player-move", {
+      row: data.row,
+      col: data.col,
+      roomId: data.roomId,
+    });
+  }
+  if (data.type === "chat-message") {
+    console.log("收到聊天消息：", data.message);
+    socket.emit("chat-message", {
+      message: data.message,
+      roomId: data.roomId,
+    });
+  }
+})

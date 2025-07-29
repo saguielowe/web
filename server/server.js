@@ -1,4 +1,5 @@
 // server/server.js
+// 注意此代码保存后需要重启服务器才能生效，不会自动热更新
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
@@ -21,15 +22,14 @@ const rooms = {};
 // 示例 socket.io 通信
 io.on("connection", (socket) => {
   console.log("New client connected:", socket.id);
-
   socket.on("create-room", () => {
     // 检查是否已经在房间中，如果是，则先将其从所有房间中移除
-    for (const roomId in rooms) {
-      if (rooms[roomId].players.includes(socket.id)) {
-        rooms[roomId].players = rooms[roomId].players.filter(id => id !== socket.id);
+    for (const room in rooms) {
+      if (rooms[room].players.includes(socket.id)) {
+        rooms[room].players = rooms[room].players.filter(id => id !== socket.id);
       }
     }
-    const roomId = generateUniqueRoomId();  // 确保不重复
+    roomId = generateUniqueRoomId();  // 确保不重复
     rooms[roomId] = {
         players: [socket.id],
         status: "waiting"
@@ -52,13 +52,25 @@ io.on("connection", (socket) => {
         socket.to(roomId).emit("opponent-left", {
           message: `${socket.id} has left the room`,
         });
-        room.status = "waiting"; // 如果还有玩家，则将房间状态设置为“waiting”
+        if (room.status === "ready") {
+          room.status = "interrupt"; // 如果游戏进行时一方离线，则将房间状态设置为“interrupt”
+          socket.to(roomId).emit("room-status", { status: "interrupt" });
+        }
+        else room.status = "waiting"; // 如果还有玩家，则将房间状态设置为“waiting”
       }
     }
     console.log("Client disconnected:", socket.id);
   });
-
-  socket.on("join-room", (roomId) => {
+  // 游戏状态控制：rooms[roomId].status
+  /*
+  创建房间：waiting （一方离线后，若棋局未开始为 waiting，若棋局已开始为 interrupt）
+  玩家加入：waiting / interrupt → ready（如果有两个玩家）
+  游戏开始：ready
+  游戏结束：ready → finished（如果有玩家获胜或平局）
+  重新开始：finished → ready（如果玩家重新开始游戏）
+  */
+  socket.on("join-room", (temp_roomId) => {
+    roomId = temp_roomId; // 设置当前用户的房间 ID
     // 检查房间是否存在
     if (!rooms[roomId]) {
       socket.emit("room-error", {
@@ -84,29 +96,77 @@ io.on("connection", (socket) => {
     console.log(`${socket.id} joined room ${roomId}`);
 
     if (rooms[roomId].players.length === 2) { // 如果房间内有两个玩家，则将房间状态设置为“ready”
+      if (rooms[roomId].status === "interrupt") { // 如果之前是中断状态，则通知各方继续游戏
+        rooms[roomId].status = "ready";
+        console.log(`Room ${roomId} is now ready again with players: ${rooms[roomId].players.join(", ")}`);
+        socket.to(roomId).emit("room-status", { status: "ready" });
+        return;
+      }
       rooms[roomId].status = "ready";
-      randomInt(0, 1).then((firstPlayer) => {
-        let currentPlayer = firstPlayer; // 随机选择第一个玩家
-        console.log(`Game initialized. First player: ${players[currentPlayer]}`);
-        socket.to(roomId).emit("start-game", { // 通知所有玩家开始游戏
+      const firstPlayer = randomInt(0, 1); // 随机选择第一个玩家，currentplayer = 0 或 1
+      let currentPlayer = firstPlayer; // 随机选择第一个玩家
+      console.log(`Game initialized. First player: ${rooms[roomId].players[currentPlayer]}`);
+      socket.to(roomId).emit("start-game", { // 通知所有玩家开始游戏
           roomId: roomId,
           players: rooms[roomId].players,
           firstPlayer: rooms[roomId].players[firstPlayer],
-        });
-        socket.emit("start-game", {
+      });
+      socket.emit("start-game", {
           roomId: roomId,
           players: rooms[roomId].players, //players[0]是房主
           firstPlayer: rooms[roomId].players[firstPlayer],
-        });
-        console.log(`Room ${roomId} is ready with players: ${rooms[roomId].players.join(", ")}`);
-        initGame(firstPlayer); // 初始化游戏
-    });
-  }
+      });
+      rooms[roomId] = { // 初始化房间信息
+        players: rooms[roomId].players,
+        status: "ready",
+        currentPlayer: currentPlayer, // 设置当前玩家
+        boardState: Array.from({ length: 6 }, () => Array(7).fill(null)), // 初始化棋盘状态
+        moveHistory: [], // 初始化落子历史
+      }
+      console.log(`Room ${roomId} is ready with players: ${rooms[roomId].players.join(", ")}`);
+    }
+  });
 
-});
+  // 监听玩家的落子事件
+  /*
+  本地处理落子，计算落子位置，向服务器发送落子信息（player-move），并维护落子历史，本地处理高亮。
+  服务器仅转达落子位置（update-board），监控游戏状态（game-over），并通知其他玩家。
+  */
+  socket.on("player-move", (data) => {
+    console.log("original data:", data);
+    if (rooms[data.roomId].status === "finished") return; // 如果游戏已经结束，则不处理落子
+    console.log(`Player ${socket.id} made a move in room ${data.roomId}: row ${data.row}, col ${data.col}`);
+    rooms[data.roomId].boardState[data.row][data.column] = rooms[data.roomId].currentPlayer;
+    rooms[data.roomId].moveHistory.push(data.row, data.column);
+    rooms[data.roomId].currentPlayer = (rooms[data.roomId].currentPlayer + 1) % rooms[data.roomId].players.length; // 切换到下一个玩家
+    socket.to(data.roomId).emit("update-board", data);
+    if (checkWin(rooms[data.roomId].boardState)) {
+      rooms[data.roomId].status = "finished"; // 设置房间状态为“finished”
+      socket.emit("game-over", { winner: rooms[data.roomId].players[currentPlayer] });
+      socket.to(data.roomId).emit("game-over", { winner: rooms[roomId].players[currentPlayer] });
+      console.log(`Game over! Winner: ${rooms[roomId].players[currentPlayer]}`);
+    }
+    if (rooms[roomId].moveHistory.length >= 42) {
+      rooms[data.roomId].status = "finished"; // 设置房间状态为“finished”
+      socket.emit("game-over", { winner: null }); // 平局
+      socket.to(data.roomId).emit("game-over", { winner: null });
+      console.log(`Game over! It's a draw.`);
+    }
+  });
+
+  // 监听聊天消息
+  socket.on("chat-message", (data) => {
+    if (data.roomId) {
+      socket.to(data.roomId).emit("chat-message", {
+        message: data.message,
+      });
+      console.log(`Chat message from ${socket.id} in room ${data.roomId}: ${data.message}`);
+    }
+  });
+})
 
 // 启动服务
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
@@ -122,42 +182,6 @@ function generateUniqueRoomId(length = 6) {
   return id;
 }
 // 生成唯一房间 ID 的函数
-function initGame(firstPlayer) {
-  // 游戏初始化逻辑
-  const board = document.getElementById("board");
-  let boardState = Array.from({ length: 6 }, () => Array(7).fill(null));
-  let gameOver = false;  // 游戏是否结束
-  let currentPlayer = firstPlayer; // 随机选择第一个玩家
-  console.log(`Game initialized. First player: ${players[currentPlayer]}`);
-  // 监听玩家的落子事件
-  socket.on("player-move", (data) => {
-    if (gameOver) return; // 如果游戏已经结束，则不处理落子
-
-    const { column, playerId } = data;
-    if (players[currentPlayer] !== playerId) {
-      console.log(`It's not player ${playerId}'s turn.`);
-      return; // 如果不是当前玩家的回合，则忽略
-    }
-    // 落子逻辑
-    for (let row = 5; row >= 0; row--) {
-      if (!boardState[row][column]) {
-        boardState[row][column] = currentPlayer;
-        moveHistory.push({ row, column, currentPlayer });
-        socket.emit("update-board", { boardState, currentPlayer });
-        console.log(`Player ${playerId} placed a piece in column ${column}`);
-        gameOver = checkWin(boardState);
-        if (gameOver) {
-          socket.emit("game-over", { winner: players[currentPlayer], boardState });
-          console.log(`Game over! Winner: ${players[currentPlayer]}`);
-        }
-        currentPlayer = (currentPlayer + 1) % players.length; // 切换到下一个玩家
-        return; // 成功落子后退出循环
-      }
-    }
-    console.log(`Column ${column} is full. Player ${playerId} cannot place a piece.`);
-    });
-  }
-});
 
 function checkDirection(board, row, col, dr, dc, player) {
   let count = 0;

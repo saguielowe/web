@@ -1,9 +1,20 @@
 // 获取 URL 参数
+let roomId = null;
+let myturn = false; // 是否是先手
+let currentPlayer = 0; // 当前玩家，0表示玩家自己，1表示对手
 document.addEventListener("DOMContentLoaded", function() {
 	const urlParams = new URLSearchParams(window.location.search);
-	const roomId = urlParams.get('room');
+	roomId = urlParams.get('room');
   const oppId = urlParams.get('oppsid');
   const host = urlParams.get('host'); // true表示房主
+  myturn = (urlParams.get('first') === "true"); // true表示先手
+  currentPlayer = 1 - myturn; // 当前玩家，0表示玩家自己，1表示对手
+  console.log("房间号:", roomId, "对手ID:", oppId, "是否房主:", host, "是否先手:", myturn);
+  if (myturn) {
+    document.getElementById("currentPlayer").textContent = "当前玩家: 你";
+  } else { 
+    document.getElementById("currentPlayer").textContent = "当前玩家: 对手";
+  }
   if (host === "true" && document.getElementById("startGame")) {
     document.getElementById("startGame").style.display = "block";
   }
@@ -26,9 +37,32 @@ window.addEventListener("message", (event) => {
     }
     window.close();
   }
+  if (data.type === "update-board") {
+    console.log("更新棋盘状态：", data);
+    lockSettings();  // 锁定设置，防止在游戏进行中修改设置
+    handleMove(data.data.row, data.data.col); // 处理服务器发送的落子
+  }
+  if (data.type === "game-over") {
+    gameOver = true;  // 设置游戏结束标志
+    gameResult = data.result; // 更新游戏结果
+    gameEnd(gameResult); // 调用游戏结束函数
+    unlockSettings();  // 解锁设置，允许修改游戏设置
+  }
+  if (data.type === "chat-message") {
+    const chatList = document.getElementById("chat-list");
+    const li = document.createElement('li');
+    li.textContent = data.data.message;
+    li.style.textAlign = "left"; // 对手的消息靠左
+    chatList.appendChild(li);
+  }
 });
 
 const board = document.getElementById("board");
+const boardState = Array.from({ length: 6 }, () => Array(7).fill(null)); // 初始化棋盘状态
+const moveHistory = []; // 初始化落子历史
+let gameOver = false; // 游戏结束标志
+console.log("当前玩家:", currentPlayer);
+let gameEnable = true; // 游戏是否可进行
 // 初始化棋盘：6行7列，全是 null
 for (let row = 0; row < 6; row++) {
   for (let col = 0; col < 7; col++) {
@@ -44,14 +78,66 @@ const cells = document.querySelectorAll(".cell");// html的类为一级，名称
 cells.forEach(cell => {
   cell.addEventListener("click", () => {
     const col = parseInt(cell.dataset.col);
-    handleMove(col);
+    calculateMove(col); // 传入 true 表示本地落子
   });
 });
 
-function handleMove(col) {
-  window.opener.postMessage({ type: "player-move", col: col }, "*"); // 向父窗口发送玩家落子信息
+function calculateMove(col) { // 本地落子时计算落子位置
+  console.log("当前玩家:", currentPlayer);
+  if (currentPlayer) {
+    alert("请等待对手落子！");
+    return;  // 如果是对手的回合，直接返回
+  }
+  for (let row = 5; row >= 0; row--) {
+    if (!boardState[row][col]) { // 修改数据在handleMove函数中
+      window.opener.postMessage({ type: "player-move", row: row, col: col, roomId: roomId }, "*"); // 向父窗口发送玩家落子信息
+      handleMove(row, col); // 处理本地落子
+      lockSettings(); // 锁定设置，防止在游戏进行中修改设置
+      return; // 找到第一个空位后退出
+    }
+  }
+}
+// 落子位置计算有误，本地数据存储检查，悔棋，胜负判定
+function handleMove(row, col) {
+  if (gameOver) {
+    alert("游戏已结束，请重新开始！");
+    return;  // 如果游戏已经结束，直接返回
+  }
+  // if (!gameEnable) {
+  //   alert("请等待动画完毕后再落子！");
+  //   return;  // 如果游戏未开始或已结束，直接返回
+  // }
+
   lockSettings();  // 锁定设置，防止在游戏进行中修改设置
   document.getElementById("gameStatus").textContent = "游戏状态：进行中";
+  document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer === 0 ? "你" : "对手"}`; // 更新当前玩家显示
+  const target = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+  console.log(row, col);
+  currentColor = moveHistory.length % 2 === 0 ? "red" : "blue"; // 根据落子历史确定当前玩家
+  target.classList.add(currentColor);
+  target.classList.add("falling"); // 添加下落动画类
+  gameEnable = false;  // 设置游戏不可进行，等待动画结束
+      setTimeout(() => {
+        gameEnable = true;  // 动画结束后恢复游戏可进行状态
+        target.classList.remove("falling"); // 动画结束后移除下落动画
+        if (document.getElementById("showMoveNumber").checked) {
+          const moveNumber = moveHistory.length;  // 当前是第几步
+          const numberTag = document.createElement("span");
+          numberTag.classList.add("move-number");
+          numberTag.textContent = moveNumber;
+          const colors = ["#e74c3c", "#3498db", "#f1c40f", "#2ecc71", "#9b59b6"];
+          numberTag.style.color = colors[moveNumber % colors.length];
+          target.appendChild(numberTag);
+        }
+      }, 500); // 假设下落动画持续500毫秒
+      boardState[row][col] = currentPlayer;  // 更新数据结构
+      moveHistory.push({ row, col});
+      // 检查是否有玩家获胜，注意要延后判断
+      setTimeout(() => {
+          currentPlayer = 1 - currentPlayer; // 切换到下一个玩家
+          document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer === 0 ? "你" : "对手"}`; // 更新当前玩家显示
+      }, 520);
+      return;
 }
 
 function highlightpotentialWin(row, col, dr, dc, player, cnt) {
@@ -97,6 +183,10 @@ function highlightWin(r1, c1, r2, c2, color) {
 }
 
 function resetGame() {
+  if (!gameOver) {
+    alert("游戏尚未结束，无法重置！");
+    return;
+  }
   document.getElementById("win-line").innerHTML = ""; // 清空胜利线
   document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer}`;  // 更新当前玩家显示
   document.getElementById("gameStatus").textContent = "游戏状态：待开始";
@@ -104,6 +194,10 @@ function resetGame() {
     cell.classList.remove("red", "blue", "highlight");  // 清除所有格子的样式
   });
   document.querySelectorAll(".move-number").forEach(e => e.remove());
+  boardState.forEach(row => row.fill(null)); // 重置棋盘状态
+  moveHistory = []; // 清空落子历史
+  gameOver = false; // 重置游戏结束标志
+  window.opener.postMessage({ type: "reset-game" }, "*"); // 向父窗口发送重置游戏消息
   unlockSettings();  // 解锁设置，允许修改游戏设置
 }
 
@@ -173,4 +267,19 @@ function unlockSettings() {
   inputs.forEach(input => {
     input.disabled = false;
   });
+}
+
+function sendChat(){
+  const chatInput = document.getElementById("chat");
+  const message = chatInput.value.trim();
+  if (message) {
+    console.log("发送聊天信息：", message);
+    window.opener.postMessage({ type: "chat-message", message: message, roomId: roomId}, "*"); // 向父窗口发送聊天信息
+    chatInput.value = ""; // 清空输入框
+    const chatList = document.getElementById("chat-list");
+    const li = document.createElement('li');
+    li.textContent = message;
+    li.style.textAlign = "right";
+    chatList.appendChild(li);
+  }
 }
