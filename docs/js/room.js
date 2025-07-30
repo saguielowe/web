@@ -2,11 +2,13 @@
 let roomId = null;
 let myturn = false; // 是否是先手
 let currentPlayer = 0; // 当前玩家，0表示玩家自己，1表示对手
+let oppId = null; // 对手ID
+let host = false; // 是否是房主
 document.addEventListener("DOMContentLoaded", function() {
 	const urlParams = new URLSearchParams(window.location.search);
 	roomId = urlParams.get('room');
-  const oppId = urlParams.get('oppsid');
-  const host = urlParams.get('host'); // true表示房主
+  oppId = urlParams.get('oppsid');
+  host = (urlParams.get('host') === "true"); // true表示房主
   myturn = (urlParams.get('first') === "true"); // true表示先手
   currentPlayer = 1 - myturn; // 当前玩家，0表示玩家自己，1表示对手
   console.log("房间号:", roomId, "对手ID:", oppId, "是否房主:", host, "是否先手:", myturn);
@@ -15,7 +17,7 @@ document.addEventListener("DOMContentLoaded", function() {
   } else { 
     document.getElementById("currentPlayer").textContent = "当前玩家: 对手";
   }
-  if (host === "true" && document.getElementById("startGame")) {
+  if (host && document.getElementById("startGame")) {
     document.getElementById("startGame").style.display = "block";
   }
 	const roomIdElement = document.getElementById("roomId");
@@ -44,8 +46,21 @@ window.addEventListener("message", (event) => {
   }
   if (data.type === "game-over") {
     gameOver = true;  // 设置游戏结束标志
-    gameResult = data.result; // 更新游戏结果
-    gameEnd(gameResult); // 调用游戏结束函数
+    if (data.data.winner !== null) {
+      gameResult = data.data.winner === oppId ? 0 : 1; // 0表示对手胜利，1表示玩家胜利
+      if (gameResult === 1) {
+        document.getElementById("gameStatus").textContent = "游戏结束：你胜利了！";
+        playSound("win");
+      }
+      else {
+        document.getElementById("gameStatus").textContent = "游戏结束：对手胜利";
+        playSound("lose");
+      }
+    }
+    else {
+      gameResult = 2; // 2表示平局
+      document.getElementById("gameStatus").textContent = "游戏结束：平局";
+    }
     unlockSettings();  // 解锁设置，允许修改游戏设置
   }
   if (data.type === "chat-message") {
@@ -55,13 +70,16 @@ window.addEventListener("message", (event) => {
     li.style.textAlign = "left"; // 对手的消息靠左
     chatList.appendChild(li);
   }
+  if (data.type === "reset-game") {
+    console.log("收到重置游戏请求：", data);
+    to_resetGame(data.data.firstPlayer); // 被动重置游戏
+  }
 });
 
 const board = document.getElementById("board");
-const boardState = Array.from({ length: 6 }, () => Array(7).fill(null)); // 初始化棋盘状态
-const moveHistory = []; // 初始化落子历史
+let boardState = Array.from({ length: 6 }, () => Array(7).fill(null)); // 初始化棋盘状态
+let moveHistory = []; // 初始化落子历史
 let gameOver = false; // 游戏结束标志
-console.log("当前玩家:", currentPlayer);
 let gameEnable = true; // 游戏是否可进行
 // 初始化棋盘：6行7列，全是 null
 for (let row = 0; row < 6; row++) {
@@ -83,13 +101,13 @@ cells.forEach(cell => {
 });
 
 function calculateMove(col) { // 本地落子时计算落子位置
-  console.log("当前玩家:", currentPlayer);
+  console.log("当前盘面：", boardState);
   if (currentPlayer) {
     alert("请等待对手落子！");
     return;  // 如果是对手的回合，直接返回
   }
   for (let row = 5; row >= 0; row--) {
-    if (!boardState[row][col]) { // 修改数据在handleMove函数中
+    if (boardState[row][col] === null) { // 修改数据在handleMove函数中
       window.opener.postMessage({ type: "player-move", row: row, col: col, roomId: roomId }, "*"); // 向父窗口发送玩家落子信息
       handleMove(row, col); // 处理本地落子
       lockSettings(); // 锁定设置，防止在游戏进行中修改设置
@@ -97,16 +115,12 @@ function calculateMove(col) { // 本地落子时计算落子位置
     }
   }
 }
-// 落子位置计算有误，本地数据存储检查，悔棋，胜负判定
+
 function handleMove(row, col) {
   if (gameOver) {
     alert("游戏已结束，请重新开始！");
     return;  // 如果游戏已经结束，直接返回
   }
-  // if (!gameEnable) {
-  //   alert("请等待动画完毕后再落子！");
-  //   return;  // 如果游戏未开始或已结束，直接返回
-  // }
 
   lockSettings();  // 锁定设置，防止在游戏进行中修改设置
   document.getElementById("gameStatus").textContent = "游戏状态：进行中";
@@ -183,12 +197,12 @@ function highlightWin(r1, c1, r2, c2, color) {
 }
 
 function resetGame() {
-  if (!gameOver) {
-    alert("游戏尚未结束，无法重置！");
-    return;
-  }
+  // if (!gameOver) {
+  //   alert("游戏尚未结束，无法重置！");
+  //   return;
+  // }
   document.getElementById("win-line").innerHTML = ""; // 清空胜利线
-  document.getElementById("currentPlayer").textContent = `当前玩家: ${currentPlayer}`;  // 更新当前玩家显示
+  document.getElementById("currentPlayer").textContent = `当前玩家: 待分配`;  // 更新当前玩家显示
   document.getElementById("gameStatus").textContent = "游戏状态：待开始";
   document.querySelectorAll(".cell").forEach(cell => {
     cell.classList.remove("red", "blue", "highlight");  // 清除所有格子的样式
@@ -197,7 +211,33 @@ function resetGame() {
   boardState.forEach(row => row.fill(null)); // 重置棋盘状态
   moveHistory = []; // 清空落子历史
   gameOver = false; // 重置游戏结束标志
-  window.opener.postMessage({ type: "reset-game" }, "*"); // 向父窗口发送重置游戏消息
+  window.opener.postMessage({ type: "reset-game", roomId: roomId }, "*"); // 向父窗口发送重置游戏消息，只有房主可以重置游戏，非房主这里只是被动执行
+  console.log("重置游戏请求已发送到服务器");
+  unlockSettings();  // 解锁设置，允许修改游戏设置
+}
+
+function to_resetGame(firstPlayer) {
+  // if (!gameOver) {
+  //   alert("游戏尚未结束，无法重置！");
+  //   return;
+  // }
+  document.getElementById("win-line").innerHTML = ""; // 清空胜利线
+  if (firstPlayer === oppId) {
+    currentPlayer = 1; // 如果对手是先手，则当前玩家为1
+    document.getElementById("currentPlayer").textContent = `当前玩家: 对手`;  // 更新当前玩家显示
+  }
+  else {
+    currentPlayer = 0; // 如果自己是先手，则当前玩家为0
+    document.getElementById("currentPlayer").textContent = `当前玩家: 你`;  // 更新当前玩家显示
+  }
+  document.getElementById("gameStatus").textContent = "游戏状态：待开始";
+  document.querySelectorAll(".cell").forEach(cell => {
+    cell.classList.remove("red", "blue", "highlight");  // 清除所有格子的样式
+  });
+  document.querySelectorAll(".move-number").forEach(e => e.remove());
+  boardState.forEach(row => row.fill(null)); // 重置棋盘状态
+  moveHistory = []; // 清空落子历史
+  gameOver = false; // 重置游戏结束标志
   unlockSettings();  // 解锁设置，允许修改游戏设置
 }
 
@@ -206,17 +246,11 @@ function exportGameData() {
     alert("游戏尚未结束，无法导出数据！");
     return;
   }
-  if (document.querySelector('input[name="ai"]:checked').value === "backend") {
-    ai_difficulty = "AI-困难";
-  }
-  else {
-    ai_difficulty = "AI-简单";
-  }
   const data = {
     player1: "Player",
-    player2: ai_difficulty,
+    player2: oppId,
     timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
-    first_player: "Player",
+    first_player: myturn === 1 ? "Player" : oppId,
     moves: moveHistory,
     result: gameResult  // 假设你已有 result 状态，1/2/0
   };

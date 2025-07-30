@@ -414,8 +414,8 @@ document.getElementById("welcome").textContent = `欢迎，${username}！`;
 
 let socket = null;
 function initSocket() { // 初始化 socket.io 连接，一个socket只需要配置一次
-  //socket = io("https://connect-4-room.onrender.com");
-  socket = io("http://localhost:4000"); // 本地测试时使用
+  socket = io("https://connect-4-room.onrender.com");
+  //socket = io("http://localhost:4000"); // 本地测试时使用
     socket.on("connect", () => {
       console.log("已连接到服务器");
     });
@@ -482,6 +482,7 @@ function initSocket() { // 初始化 socket.io 连接，一个socket只需要配
     });
 
     socket.on("game-over", (data) => {
+      console.log("游戏结束消息：", data);
       winRef.postMessage({type: "game-over", data: data}, "*"); // 向新窗口发送游戏结束消息
     });
 
@@ -493,6 +494,11 @@ function initSocket() { // 初始化 socket.io 连接，一个socket只需要配
     socket.on("chat-message", (data) => {
       console.log("收到聊天消息：", data.message);
       winRef.postMessage({type: "chat-message", data: data}, "*"); // 向新窗口发送聊天消息
+    });
+
+    socket.on("reset-game", (data) => {
+      console.log("收到重置游戏请求：", data);
+      winRef.postMessage({type: "reset-game", data: data}, "*"); // 向新窗口发送重置游戏请求
     });
 }
 
@@ -629,5 +635,9 @@ window.addEventListener("message", (event) => { // 监听来自新窗口的消�
       message: data.message,
       roomId: data.roomId,
     });
+  }
+  if (data.type === "reset-game") {
+    console.log("收到重置游戏请求");
+    socket.emit("reset-game", { roomId: data.roomId });  // 通知服务器重置游戏
   }
 })

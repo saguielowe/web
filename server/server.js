@@ -103,7 +103,7 @@ io.on("connection", (socket) => {
         return;
       }
       rooms[roomId].status = "ready";
-      const firstPlayer = randomInt(0, 1); // 随机选择第一个玩家，currentplayer = 0 或 1
+      const firstPlayer = Math.floor(Math.random() * 2); // 随机选择第一个玩家，currentplayer = 0 或 1
       let currentPlayer = firstPlayer; // 随机选择第一个玩家
       console.log(`Game initialized. First player: ${rooms[roomId].players[currentPlayer]}`);
       socket.to(roomId).emit("start-game", { // 通知所有玩家开始游戏
@@ -136,15 +136,14 @@ io.on("connection", (socket) => {
     console.log("original data:", data);
     if (rooms[data.roomId].status === "finished") return; // 如果游戏已经结束，则不处理落子
     console.log(`Player ${socket.id} made a move in room ${data.roomId}: row ${data.row}, col ${data.col}`);
-    rooms[data.roomId].boardState[data.row][data.column] = rooms[data.roomId].currentPlayer;
-    rooms[data.roomId].moveHistory.push(data.row, data.column);
-    rooms[data.roomId].currentPlayer = (rooms[data.roomId].currentPlayer + 1) % rooms[data.roomId].players.length; // 切换到下一个玩家
+    rooms[data.roomId].boardState[data.row][data.col] = rooms[data.roomId].currentPlayer;
+    rooms[data.roomId].moveHistory.push(data.row, data.col);
     socket.to(data.roomId).emit("update-board", data);
-    if (checkWin(rooms[data.roomId].boardState)) {
+    if (checkWin(rooms[data.roomId].boardState, rooms[data.roomId].currentPlayer) !== -1) {
       rooms[data.roomId].status = "finished"; // 设置房间状态为“finished”
-      socket.emit("game-over", { winner: rooms[data.roomId].players[currentPlayer] });
-      socket.to(data.roomId).emit("game-over", { winner: rooms[roomId].players[currentPlayer] });
-      console.log(`Game over! Winner: ${rooms[roomId].players[currentPlayer]}`);
+      socket.emit("game-over", { winner: rooms[data.roomId].players[rooms[data.roomId].currentPlayer] });
+      socket.to(data.roomId).emit("game-over", { winner: rooms[roomId].players[rooms[data.roomId].currentPlayer] });
+      console.log(`Game over! Winner: ${rooms[roomId].players[rooms[data.roomId].currentPlayer]}`);
     }
     if (rooms[roomId].moveHistory.length >= 42) {
       rooms[data.roomId].status = "finished"; // 设置房间状态为“finished”
@@ -152,6 +151,7 @@ io.on("connection", (socket) => {
       socket.to(data.roomId).emit("game-over", { winner: null });
       console.log(`Game over! It's a draw.`);
     }
+    rooms[data.roomId].currentPlayer = (rooms[data.roomId].currentPlayer + 1) % rooms[data.roomId].players.length; // 切换到下一个玩家
   });
 
   // 监听聊天消息
@@ -161,6 +161,23 @@ io.on("connection", (socket) => {
         message: data.message,
       });
       console.log(`Chat message from ${socket.id} in room ${data.roomId}: ${data.message}`);
+    }
+  });
+
+  // 监听重置游戏请求
+  socket.on("reset-game", (data) => {
+    if (rooms[data.roomId]) {
+      console.log(`Resetting game in room ${data.roomId}`);
+      rooms[data.roomId].boardState = Array.from({ length: 6 }, () => Array(7).fill(null)); // 重置棋盘状态
+      rooms[data.roomId].moveHistory = []; // 清空落子历史
+      rooms[data.roomId].status = "ready"; // 重置游戏状态
+      rooms[data.roomId].currentPlayer = Math.floor(Math.random() * 2); // 随机选择第一个玩家
+      socket.to(data.roomId).emit("reset-game", { roomId: data.roomId, 
+        firstPlayer: rooms[data.roomId].players[rooms[data.roomId].currentPlayer],
+      });
+      socket.emit("reset-game", { roomId: data.roomId, 
+        firstPlayer: rooms[data.roomId].players[rooms[data.roomId].currentPlayer],
+      });
     }
   });
 })
@@ -197,10 +214,8 @@ function checkDirection(board, row, col, dr, dc, player) {
 
     if (cell === player) {
       count++;
-    } else if (cell === null && i === 3) {
-      // 第4格是空，前三个是我方 → 潜力三连
-      return 3.5;
-    } else {
+    }
+    else {
       // 中间断了（空或对手），直接返回当前计数
       return count;
     }
@@ -224,15 +239,15 @@ function checkWin(board, player) {
 
   for (let row = 0; row < 6; row++) {
     for (let col = 0; col < 7; col++) {
-      if (board[row][col] != null) {
+      if (board[row][col] === player) {
         for (const { r, c } of directions) {
           if (checkDirection(board, row, col, r, c, player) === 4) {
-            // 如果找到4连，发出游戏结束报文
             return player;
           }
         }
       }
     }
   }
-  return 0;
+  console.log("没有找到胜利条件");
+  return -1;
 }
