@@ -137,7 +137,7 @@ io.on("connection", (socket) => {
     if (rooms[data.roomId].status === "finished") return; // 如果游戏已经结束，则不处理落子
     console.log(`Player ${socket.id} made a move in room ${data.roomId}: row ${data.row}, col ${data.col}`);
     rooms[data.roomId].boardState[data.row][data.col] = rooms[data.roomId].currentPlayer;
-    rooms[data.roomId].moveHistory.push(data.row, data.col);
+    rooms[data.roomId].moveHistory.push([data.row, data.col]);
     socket.to(data.roomId).emit("update-board", data);
     if (checkWin(rooms[data.roomId].boardState, rooms[data.roomId].currentPlayer) !== -1) {
       rooms[data.roomId].status = "finished"; // 设置房间状态为“finished”

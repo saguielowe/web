@@ -217,10 +217,10 @@ function resetGame() {
 }
 
 function to_resetGame(firstPlayer) {
-  // if (!gameOver) {
-  //   alert("游戏尚未结束，无法重置！");
-  //   return;
-  // }
+  if (!gameOver) {
+    alert("游戏尚未结束，无法重置！");
+    return;
+  }
   document.getElementById("win-line").innerHTML = ""; // 清空胜利线
   if (firstPlayer === oppId) {
     currentPlayer = 1; // 如果对手是先手，则当前玩家为1

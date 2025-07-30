@@ -587,6 +587,7 @@ async function changeUsername() {
   const newName = prompt("请输入新昵称：", localStorage.getItem("username"));
   if (!newName || newName.trim() === "") return;
 
+  document.getElementById("welcome").textContent = `欢迎，${newName.trim()}！`;
   const userId = localStorage.getItem("userId");
   const res = await fetch(`${sql_base}/update_username`, {
     method: "POST",
