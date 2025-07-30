@@ -197,10 +197,10 @@ function highlightWin(r1, c1, r2, c2, color) {
 }
 
 function resetGame() {
-  // if (!gameOver) {
-  //   alert("游戏尚未结束，无法重置！");
-  //   return;
-  // }
+  if (!gameOver) {
+    alert("游戏尚未结束，无法重置！");
+    return;
+  }
   document.getElementById("win-line").innerHTML = ""; // 清空胜利线
   document.getElementById("currentPlayer").textContent = `当前玩家: 待分配`;  // 更新当前玩家显示
   document.getElementById("gameStatus").textContent = "游戏状态：待开始";
@@ -217,10 +217,6 @@ function resetGame() {
 }
 
 function to_resetGame(firstPlayer) {
-  if (!gameOver) {
-    alert("游戏尚未结束，无法重置！");
-    return;
-  }
   document.getElementById("win-line").innerHTML = ""; // 清空胜利线
   if (firstPlayer === oppId) {
     currentPlayer = 1; // 如果对手是先手，则当前玩家为1
